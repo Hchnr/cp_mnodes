@@ -1,0 +1,30 @@
+# Python / local tools
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Local copy-run state, credentials and logs (never source-controlled)
+*.sqlite*
+*.db
+*.db-wal
+*.db-shm
+.snapshots/
+active_migration.json
+config.json
+*_token*
+*.pem
+*.key
+*.log
+
+# Uploaded snapshot bookkeeping and generated test fixtures
+.upload-backups/
+UPLOAD_INFO.json
+SYNC_INFO_*.json
+SHA256SUMS
+broker-parallel-*/
+parallel-resume-fixture-*/
+resume-index-fixture-*/
