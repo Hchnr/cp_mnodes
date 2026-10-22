@@ -127,6 +127,18 @@ class TargetProbeTests(unittest.TestCase):
                 self.service.probe({'rel': 'data/a'})
             self.assertEqual(error.exception.status, 503)
 
+    def test_bounded_stop_cache_is_shared_and_sticky(self):
+        service=probe.ProbeService(self.control,self.cfg,slots=64,stop_cache_seconds=.1)
+        with mock.patch.object(probe.time,'monotonic',return_value=1):
+            self.assertFalse(service.stopped())
+            (self.control/'STOP').write_text('stop')
+            self.assertFalse(service.stopped())
+        with mock.patch.object(probe.time,'monotonic',return_value=1.11):
+            self.assertTrue(service.stopped())
+        (self.control/'STOP').unlink()
+        self.assertTrue(service.stopped())
+        self.assertEqual(service.health()['slots'],64)
+
     def test_filesystem_slots_are_bounded_and_busy_requests_do_not_do_metadata(self):
         gate = threading.Event()
         entered = threading.Event()
@@ -177,7 +189,7 @@ class TargetProbeTests(unittest.TestCase):
                     dict(self.cfg, broker_token='')):
             with self.assertRaises(ValueError):
                 probe.ProbeService(self.control, cfg)
-        for slots in (0, 33, True, 3.0):
+        for slots in (0, 129, True, 3.0):
             with self.assertRaises(ValueError):
                 probe.ProbeService(self.control, self.cfg, slots=slots)
 

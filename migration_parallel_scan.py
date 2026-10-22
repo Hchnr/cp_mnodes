@@ -21,6 +21,21 @@ class ScanCancelled(RuntimeError):
     pass
 
 
+def _seeded_nondirectory(child, path, seeded_paths):
+    """Avoid re-statting replayed leaves, but never prune directory walks.
+
+    DirEntry can answer from readdir type information, falling back to stat
+    when needed. A former file that is now a directory must still be walked.
+    Observation failures take the ordinary checked inventory path instead.
+    """
+    if path not in seeded_paths:
+        return False
+    try:
+        return not child.is_dir(follow_symlinks=False)
+    except OSError:
+        return False
+
+
 def _seed(scanner, entry, source_dev=None, original_root_dev=None):
     kind = entry.get('kind')
     stats = scanner.stats
@@ -84,7 +99,9 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
                batch_bytes=1024**3, batch_files=32, hardlink_index=None,
                on_error=None, overwrite_manifest=False, entries_per_second=0,
                workers=32, queue_size=8192, control=None, cancel=None,
-               resume_records=None, skip_rel=None, seed_stats=None):
+               resume_records=None, skip_rel=None, seed_stats=None,
+               skip_seeded_nondirectories=False, initial_seeded_paths=None,
+               append_manifest=False, on_tick=None):
     """Compatible scan_phase plus parallelism and explicit combined-manifest resume.
 
     resume_records must be complete parsed records from an older immutable
@@ -94,6 +111,8 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
     seed_stats is an alternative to counting resume_records; supply totals only
     for old records represented by skip_rel, never unscanned current records.
     Cancellation raises ScanCancelled and leaves a readable partial manifest.
+    skip_seeded_nondirectories avoids repeated leaf metadata/event work only
+    for paths already represented by resume_records; directories still walk.
     """
     if phase not in PHASE_PATHS:
         raise ValueError('phase must be 1, 2, or 3')
@@ -112,7 +131,11 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
     outstanding = [0]
     skipped = set() if skip_rel is None else set(skip_rel)
     seeded_keys = set()
-    seeded_paths = set()
+    if initial_seeded_paths is not None and resume_records is not None:
+        raise ValueError('prepared paths and manifest replay are mutually exclusive')
+    if append_manifest and initial_seeded_paths is None:
+        raise ValueError('append requires an explicitly prepared inventory')
+    seeded_paths = set() if initial_seeded_paths is None else initial_seeded_paths
     seen_paths = set()
     threads = []
     anchor = None
@@ -194,6 +217,9 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
                 path = parent + '/' + child.name if parent else child.name
                 if phase == 3 and path in PRIORITY_SUBTREES:
                     continue
+                if (skip_seeded_nondirectories
+                        and _seeded_nondirectory(child, path, seeded_paths)):
+                    continue
                 try:
                     current = child.stat(follow_symlinks=False)
                 except OSError as exc:
@@ -258,7 +284,9 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
                     outstanding[0] -= 1
                 directories.task_done()
 
-    with open(manifest_path, 'w' if overwrite_manifest else 'x', encoding='utf-8') as manifest:
+    if append_manifest and not os.path.isfile(manifest_path):
+        raise FileNotFoundError(manifest_path)
+    with open(manifest_path, 'a' if append_manifest else 'w' if overwrite_manifest else 'x', encoding='utf-8') as manifest:
         scanner = _Scanner(manifest, emit_batch, batch_bytes, batch_files,
                            {} if hardlink_index is None else hardlink_index,
                            on_error, phase, entries_per_second)
@@ -321,6 +349,8 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
                                 if external_cancelled():
                                     raise ScanCancelled('STOP requested during parallel scan')
                                 last_cancel_check = time.monotonic()
+                                if on_tick is not None:
+                                    on_tick()
                             try:
                                 entry = events.get(timeout=0.1)
                             except queue.Empty:

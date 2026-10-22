@@ -58,7 +58,7 @@ class OverlapProgressTests(unittest.TestCase):
         self.assertEqual(view['cumulative_evidence']['unique_entries_upper_bound'], 115)
         self.assertEqual(view['cumulative_evidence']['unique_bytes_lower_bound'], 800)
         self.assertEqual(view['cumulative_evidence']['unique_bytes_upper_bound'], 1100)
-        text = monitor.render(view)
+        text = monitor.render(view, details=True)
         self.assertTrue(text.startswith('=' * 96 + '\n复制进度开始'))
         self.assertIn('恢复续传队列（非正式第3轮）', text)
         self.assertIn('历史 + 本次累计工作量（含重叠）：115 项 / 1.1 KiB', text)
@@ -71,6 +71,14 @@ class OverlapProgressTests(unittest.TestCase):
         self.assertIn('实际处理：12,345 份回执', text)
         self.assertNotIn('|  第3轮', text)
         self.assertEqual(json.loads(json.dumps(view))['overall']['verified_files'], 0)
+
+    def test_missing_node_copy_bytes_stays_unknown(self):
+        files, node = self.fixture()
+        del node['bytes']
+        view = self.view(files, node)
+        self.assertIsNone(view['nodes'][0]['bytes'])
+        self.assertIsNone(view['new_copied_bytes'])
+        self.assertIsNone(view['copy_work_progress']['copied_bytes'])
 
     def test_distributed_target_details_and_observed_low_activity_are_preserved(self):
         files, node = self.fixture()
@@ -87,7 +95,7 @@ class OverlapProgressTests(unittest.TestCase):
         self.assertEqual(view['distributed_target_slots_per_node'], 64)
         self.assertEqual(view['distributed_target_probe']['endpoints']
                          ['fixture-worker-0:37652']['remote_errors'], 120)
-        text = monitor.render(view)
+        text = monitor.render(view, details=True)
         self.assertIn('分布在 12 个节点；每节点最多 64 路只读元数据检查', text)
         self.assertIn('目标检查端点 fixture-worker-0:37652 错误率 60.0%', text)
         self.assertIn('当前复制线程活跃 1/128', text)
@@ -131,7 +139,7 @@ class OverlapProgressTests(unittest.TestCase):
         files['state.json']['warm_summary'] = {'verified_files': 30}
         view = self.view(files, node)
         self.assertEqual(view['overall']['verified_files'], 30)
-        text = monitor.render(view)
+        text = monitor.render(view, details=True)
         self.assertIn('|  第1轮', text)
         self.assertNotIn('恢复续传队列（非正式第3轮）', text)
         self.assertNotIn('实际处理：', text)

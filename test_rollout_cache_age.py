@@ -178,6 +178,102 @@ class CacheAgeTests(unittest.TestCase):
         self.assertEqual(rollout.roll_one(call, 'worker-2', 'primary')['status'], 'skipped')
         self.assertEqual([c[1] for c in calls], ['inspect'])
 
+    def test_missing_checkpoint_can_propagate_before_exactly_one_replacement(self):
+        missing = dict(VISIBLE, record_status=None, record_operation=None, record_expected=None)
+        inspections = iter([VISIBLE, missing, VISIBLE])
+        call, calls = self.backend({'inspect': lambda: next(inspections)})
+        with mock.patch.object(rollout.time, 'monotonic', side_effect=[0, .1]), \
+                mock.patch.object(rollout.time, 'sleep') as sleep:
+            result = rollout.roll_one(call, 'worker-2', 'primary', visibility_timeout=30)
+        self.assertEqual(result['status'], 'complete')
+        self.assertEqual(sum(c[1] == 'replace' for c in calls), 1)
+        self.assertEqual(sum(c[1] == 'inspect' for c in calls), 3)
+        sleep.assert_called_once_with(.25)
+
+    def test_old_operation_checkpoint_may_propagate_while_actual_identity_is_still_idle(self):
+        old = dict(VISIBLE, record_operation='previous-operation', record_expected=dict(IDENTITY, pid=2))
+        inspections = iter([VISIBLE, old, VISIBLE])
+        call, calls = self.backend({'inspect': lambda: next(inspections)})
+        with mock.patch.object(rollout.time, 'monotonic', side_effect=[0, .1]), \
+                mock.patch.object(rollout.time, 'sleep'):
+            result = rollout.roll_one(call, 'worker-2', 'primary', visibility_timeout=30)
+        self.assertEqual(result['status'], 'complete')
+        self.assertEqual(sum(c[1] == 'replace' for c in calls), 1)
+
+    def test_visibility_deadline_expires_without_replacement_and_releases_drain(self):
+        missing = dict(VISIBLE, record_status=None, record_operation=None, record_expected=None)
+        inspections = iter([VISIBLE, missing, missing])
+        call, calls = self.backend({'inspect': lambda: next(inspections)})
+        with mock.patch.object(rollout.time, 'monotonic', side_effect=[0, .1, 1]), \
+                mock.patch.object(rollout.time, 'sleep'):
+            result = rollout.roll_one(call, 'worker-2', 'primary', visibility_timeout=1)
+        self.assertEqual(result['status'], 'waiting_payload')
+        self.assertNotIn('replace', [c[1] for c in calls])
+        self.assertEqual(calls[-1][1], 'release')
+
+    def test_visibility_wait_never_outwaits_identity_active_or_payload_drift(self):
+        for changes in ({'identity': dict(IDENTITY, pid=2)},
+                        {'identity': dict(IDENTITY, starttime_ticks='2')},
+                        {'identity': dict(IDENTITY, argv=['other'])},
+                        {'active_count': 1}, {'payload_fd_count': 1}, {'checkpoint_protocol': 1}):
+            with self.subTest(changes=changes):
+                observed = dict(VISIBLE, record_status=None, record_operation=None, record_expected=None, **changes)
+                inspections = iter([VISIBLE, observed, VISIBLE])
+                call, calls = self.backend({'inspect': lambda: next(inspections)})
+                with mock.patch.object(rollout.time, 'sleep') as sleep:
+                    result = rollout.roll_one(call, 'worker-2', 'primary', visibility_timeout=30)
+                self.assertEqual(result['status'], 'waiting_payload')
+                self.assertEqual(sum(c[1] == 'inspect' for c in calls), 2)
+                self.assertNotIn('replace', [c[1] for c in calls])
+                self.assertEqual(calls[-1][1], 'release')
+                sleep.assert_not_called()
+
+    def test_visibility_rpc_error_is_not_retried_even_with_positive_timeout(self):
+        inspections = iter([VISIBLE, TimeoutError('read-only RPC timeout')])
+        def inspect():
+            value = next(inspections)
+            if isinstance(value, BaseException):
+                raise value
+            return value
+        call, calls = self.backend({'inspect': inspect})
+        with mock.patch.object(rollout.time, 'sleep') as sleep:
+            result = rollout.roll_one(call, 'worker-2', 'primary', visibility_timeout=30)
+        self.assertEqual(result['status'], 'waiting_payload')
+        self.assertEqual(sum(c[1] == 'inspect' for c in calls), 2)
+        self.assertNotIn('replace', [c[1] for c in calls])
+        self.assertEqual(calls[-1][1], 'release')
+        sleep.assert_not_called()
+
+    def test_corrupt_current_idle_proof_is_not_treated_as_propagation(self):
+        bad = dict(VISIBLE, record_expected=dict(IDENTITY, pid=2))
+        inspections = iter([VISIBLE, bad, VISIBLE])
+        call, calls = self.backend({'inspect': lambda: next(inspections)})
+        with mock.patch.object(rollout.time, 'sleep') as sleep:
+            self.assertEqual(rollout.roll_one(call, 'worker-2', 'primary', visibility_timeout=30)['status'],
+                             'waiting_payload')
+        sleep.assert_not_called()
+        self.assertNotIn('replace', [c[1] for c in calls])
+
+    def test_remote_cli_gate_accepts_thirty_but_rejects_thirty_one(self):
+        args = ['rollout_cache_age.py', '--action', 'hold', '--control', '/control', '--gate-timeout']
+        with mock.patch.object(rollout.sys, 'argv', args + ['30']), \
+                mock.patch.object(rollout, 'remote') as remote:
+            rollout.main()
+            self.assertEqual(remote.call_args.args[0].gate_timeout, 30)
+            self.assertEqual(remote.call_args.args[0].visibility_timeout, 0)
+        with mock.patch.object(rollout.sys, 'argv', args + ['31']), \
+                mock.patch.object(rollout, 'remote') as remote, mock.patch.object(rollout.sys, 'stderr', io.StringIO()):
+            with self.assertRaises(SystemExit):
+                rollout.main()
+            remote.assert_not_called()
+
+    def test_visibility_budget_rejects_negative_or_unbounded_before_any_rpc(self):
+        for timeout in (-1, float('inf'), float('nan')):
+            call, calls = self.backend()
+            with self.assertRaises(ValueError):
+                rollout.roll_one(call, 'worker-2', 'primary', visibility_timeout=timeout)
+            self.assertEqual(calls, [])
+
     def test_missing_remote_checkpoint_raises_before_term_or_launch(self):
         with tempfile.TemporaryDirectory() as directory:
             control = Path(directory).resolve()

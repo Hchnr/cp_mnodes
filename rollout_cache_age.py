@@ -13,6 +13,7 @@ import argparse
 import datetime
 import fcntl
 import json
+import math
 import os
 from pathlib import Path
 import resource
@@ -78,6 +79,26 @@ def visible_idle_checkpoint(observed, gate, expected):
                 observed.get('active_count') == 0 and observed.get('payload_fd_count') == 0)
 
 
+def checkpoint_can_propagate(observed, gate, expected):
+    """Wait only for an old/missing record while every live idle guard holds.
+
+    A different actual process, active work, payload FD, or protocol mismatch
+    ends observation immediately. A malformed current-operation idle proof is
+    not treated as an NFS propagation delay.
+    """
+    if not all(isinstance(value, dict) for value in (observed, gate, expected)):
+        return False
+    identity = expected.get('identity')
+    if not isinstance(identity, dict):
+        return False
+    candidate = dict(observed, record_operation=gate.get('operation'),
+                     record_expected=identity, record_status='idle_verified')
+    if not visible_idle_checkpoint(candidate, gate, expected):
+        return False
+    return (observed.get('record_operation') != gate.get('operation') or
+            observed.get('record_status') in (None, 'drain_requested', 'draining'))
+
+
 def counter_check(before, after):
     def compare(old, new, prefix=''):
         for key, value in old.items():
@@ -140,7 +161,7 @@ def remote(a):
         req = urllib.request.Request(cfg['broker_url'] + '/control', data=data,
             method='GET' if data is None else 'POST', headers={
                 'Authorization': 'Bearer ' + cfg['broker_token'], 'Content-Type': 'application/json'})
-        with opener.open(req, timeout=10) as response:
+        with opener.open(req, timeout=getattr(a, 'control_timeout', 10)) as response:
             return json.load(response)
     def snapshot():
         return read_json(node_path)
@@ -379,8 +400,10 @@ def remote(a):
     raise RuntimeError('replacement heartbeat timeout; do not relaunch blindly')
 
 
-def roll_one(call, node, lane, *, gate_timeout=5, max_age=30):
+def roll_one(call, node, lane, *, gate_timeout=5, max_age=30, visibility_timeout=0):
     """Single-lane transaction; transport failures never repeat replacement."""
+    if not math.isfinite(visibility_timeout) or visibility_timeout < 0:
+        raise ValueError('visibility timeout must be finite and nonnegative')
     before = call(node, 'inspect', lane=lane)
     if before.get('checkpoint_protocol') != 2:
         return {'status': 'skipped', 'reason': 'deployed helper lacks checkpoint visibility protocol 2'}
@@ -404,13 +427,21 @@ def roll_one(call, node, lane, *, gate_timeout=5, max_age=30):
         # NFS may still hide this newly published record from the worker.
         # This RPC only observes; no replacement has been dispatched yet, so
         # a missing/stale record or transport failure can release our drain.
-        try:
-            visible = call(node, 'inspect', lane=lane)
-        except Exception as exc:
-            return {'status': 'waiting_payload', 'gate': gate,
-                    'reason': 'worker checkpoint visibility was not confirmed',
-                    'visibility_error': type(exc).__name__ + ': ' + str(exc)}
-        if not visible_idle_checkpoint(visible, gate, before):
+        visibility_deadline = time.monotonic() + visibility_timeout if visibility_timeout else None
+        while True:
+            try:
+                visible = call(node, 'inspect', lane=lane)
+            except Exception as exc:
+                return {'status': 'waiting_payload', 'gate': gate,
+                        'reason': 'worker checkpoint visibility was not confirmed',
+                        'visibility_error': type(exc).__name__ + ': ' + str(exc)}
+            if visible_idle_checkpoint(visible, gate, before):
+                break
+            if visibility_deadline is not None and checkpoint_can_propagate(visible, gate, before):
+                remaining = visibility_deadline - time.monotonic()
+                if remaining > 0:
+                    time.sleep(min(.25, remaining))
+                    continue
             return {'status': 'waiting_payload', 'gate': gate,
                     'reason': 'worker checkpoint visibility or idle identity differs',
                     'checkpoint_visibility': visible}
@@ -445,6 +476,10 @@ def main():
     ap.add_argument('--lane', choices=('primary', 'supplement'))
     ap.add_argument('--max-age', type=float, default=30)
     ap.add_argument('--gate-timeout', type=float, default=5)
+    ap.add_argument('--visibility-timeout', type=float, default=0,
+                    help='seconds of read-only observation for a delayed idle checkpoint (default: 0)')
+    ap.add_argument('--control-timeout', type=float, default=10,
+                    help='timeout for each broker control request, without retries (default: 10)')
     ap.add_argument('--remote-script')
     ap.add_argument('--wrapper')
     ap.add_argument('--action', choices=('hold', 'inspect', 'observe', 'drain', 'gate', 'replace', 'release'))
@@ -453,8 +488,12 @@ def main():
     ap.add_argument('--identity-json')
     ap.add_argument('--operation')
     a = ap.parse_args()
-    if a.max_age != 30 or not 0 < a.gate_timeout <= 5:
-        ap.error('this canary fixes max-age=30 and idle gate at most5s')
+    if a.max_age != 30 or not 0 < a.gate_timeout <= 30:
+        ap.error('this canary fixes max-age=30 and idle gate at most30s')
+    if not math.isfinite(a.visibility_timeout) or a.visibility_timeout < 0:
+        ap.error('visibility timeout must be finite and nonnegative')
+    if not math.isfinite(a.control_timeout) or not 0 < a.control_timeout <= 60:
+        ap.error('control timeout must be finite and 0<control-timeout<=60')
     if a.action:
         if not a.control or (a.action != 'hold' and (not a.host or not a.lane)):
             ap.error('remote actions require control and exact host/lane')
@@ -473,7 +512,8 @@ def main():
     def command(node, action, identity=None):
         destination = transport.ssh_destination(node, job=active['job'], owner=active.get('ssh_owner'))
         args = ['python3', '-u', a.remote_script, '--action', action, '--control', control,
-                '--max-age', str(a.max_age), '--gate-timeout', str(a.gate_timeout), '--operation', operation]
+                '--max-age', str(a.max_age), '--gate-timeout', str(a.gate_timeout),
+                '--control-timeout', str(a.control_timeout), '--operation', operation]
         if action != 'hold':
             args.extend(['--host', host, '--lane', a.lane])
         if identity is not None:
@@ -484,7 +524,8 @@ def main():
                 '-p', '2222', destination, shlex.join(args)]
     def call(node, action, lane=None, identity=None):
         result = subprocess.run(command(node, action, identity), stdin=subprocess.DEVNULL,
-            text=True, capture_output=True, timeout=80 if action == 'replace' else 30)
+            text=True, capture_output=True, timeout=(a.control_timeout + 90 if action == 'replace' else
+                a.gate_timeout + a.control_timeout + 20 if action == 'gate' else a.control_timeout + 20))
         values = [json.loads(line[7:]) for line in result.stdout.splitlines() if line.startswith('RESULT ')]
         if result.returncode or not values:
             (BASE / 'rollout_cache_age_error.txt').write_text(result.stdout + result.stderr)
@@ -505,7 +546,8 @@ def main():
             raise RuntimeError('master dispatch lock not acquired')
         record['status'] = 'rolling'
         write_json(path, record)
-        outcome = roll_one(call, a.node, a.lane, gate_timeout=a.gate_timeout, max_age=a.max_age)
+        outcome = roll_one(call, a.node, a.lane, gate_timeout=a.gate_timeout, max_age=a.max_age,
+                           visibility_timeout=a.visibility_timeout)
         record.update(outcome, updated=time.time())
         write_json(path, record)
         print(json.dumps(record, ensure_ascii=False), flush=True)
