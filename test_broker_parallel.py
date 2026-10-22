@@ -45,7 +45,7 @@ def patch_io(name, value):
 
 class Fixture:
     def __init__(self, tasks=3, old=False):
-        self.temp = tempfile.TemporaryDirectory(prefix='broker-parallel-', dir=pathlib.Path(__file__).parent)
+        self.temp = tempfile.TemporaryDirectory(prefix='broker-parallel-')
         self.control = pathlib.Path(self.temp.name).resolve()
         self.run_id = 'broker-parallel-test-' + uuid.uuid4().hex
         write_json(self.control / 'config.json', {'run_id': self.run_id, 'broker_token': 'local-fixture'})

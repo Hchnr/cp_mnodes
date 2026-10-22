@@ -117,6 +117,31 @@ class InterleavedTests(unittest.TestCase):
             scan_phase(f.source, 3, lambda entries: None, f.control/'missing.jsonl',
                        append_manifest=True, initial_seeded_paths=set())
 
+    def test_spawned_readers_and_probe_clients_keep_one_assignment_owner(self):
+        from test_migration_target_probe import TargetProbeTests
+        from migration_distributed_target_filter import DistributedTargetFilterResume
+        f=self.fixture
+        entries=[f.entry('other/'+name) for name in ('old','fresh','reserved','exists')]
+        obj=self.make([entries[0],entries[2],entries[3]],assigned=[entries[2]])
+        service_fixture=TargetProbeTests();service_fixture.setUp()
+        self.addCleanup(service_fixture.doCleanups)
+        service_fixture.service.source_root=str(f.source)
+        service_fixture.service.destination_root=str(f.destination)
+        server=service_fixture.server()
+        (f.destination/'other').mkdir();(f.destination/'other/exists').write_bytes(b'present')
+        obj.cfg.update(target_probe_endpoints=['http://127.0.0.1:'+str(server.server_port)],
+            broker_token=service_fixture.cfg['broker_token'],metadata_client_processes=2,
+            metadata_client_batch_size=2,metadata_threads_per_process=2,
+            source_scan_processes=2,source_scan_threads_per_process=2)
+        DistributedTargetFilterResume._init_probe_client(obj,obj.cfg)
+        obj.supplement_missing()
+        published=[e['rel'] for t in f.published() for e in t['entries']]
+        self.assertCountEqual(published,['other/old','other/fresh'])
+        self.assertEqual(obj.state['target_filter']['submitted'],obj.state['target_filter']['checked'])
+        self.assertTrue(obj.state['scan_complete'])
+        self.assertTrue(obj.supply_metrics['metadata_child_pids'])
+        self.assertLessEqual(obj.state['target_filter']['peak_inflight'],obj.filter_limit)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -24,6 +24,7 @@ class TargetProbeTests(unittest.TestCase):
         self.cfg = {'source': probe.SOURCE, 'destination': probe.DESTINATION,
                     'broker_token': 'fixture-private-token', 'run_id': 'fixture-run'}
         self.service = probe.ProbeService(self.control, self.cfg, slots=2)
+        self.addCleanup(self.service.close)
         # Scope validation has passed for the real production mapping. Only the
         # local fixture substitutes payload roots after construction.
         self.service.source_root = str(self.source)
@@ -183,6 +184,94 @@ class TargetProbeTests(unittest.TestCase):
         (self.control / 'STOP').write_text('fixture stop\n')
         status, value = self.request(server, {'entry': {'rel': 'data/a'}})
         self.assertEqual(status, 503)
+
+    def test_batch_http_preserves_order_and_individual_failure(self):
+        self.file(self.destination, 'data/existing')
+        self.file(self.source, 'data/fresh', b'new source contents')
+        server = self.server()
+        entries = [
+            {'rel': 'data/existing', 'kind': 'file'},
+            {'rel': 'data/fresh', 'kind': 'file', '_refresh_source': True},
+            {'rel': 'data/gone', 'kind': 'file', '_refresh_source': True},
+            {'rel': 'data/last', 'kind': 'file', 'size': 3},
+        ]
+        status, value = self.request(server, {'entries': entries}, route='/probe-batch')
+        self.assertEqual(status, 200)
+        self.assertTrue(value['ok'])
+        results = value['results']
+        self.assertEqual([result['status'] for result in results], [200, 200, 409, 200])
+        self.assertFalse(results[0]['result']['missing'])
+        self.assertEqual(results[1]['result']['entry']['size'], len(b'new source contents'))
+        self.assertEqual(results[3]['result']['entry']['rel'], 'data/last')
+        self.assertNotIn(self.cfg['broker_token'], json.dumps(value))
+        self.assertFalse((self.destination / 'data/fresh').exists())
+        status, health = self.request(server, method='GET', route='/health')
+        self.assertEqual(status, 200)
+        self.assertEqual(health['batch_limit'], 64)
+        self.assertEqual(health['counts']['batch_requests'], 1)
+        self.assertEqual(health['counts']['batch_entries'], 4)
+        self.assertEqual(health['counts']['batch_failed_entries'], 1)
+
+    def test_batch_validates_all_entries_before_any_observation(self):
+        server = self.server()
+        for entries in ([], {}, [{'rel': 'data/a'}] * 65,
+                        [{'rel': 'data/a'}, {'rel': '../escape'}],
+                        [{'rel': 'data/a'}, {'rel': 'home/hcr/a'}],
+                        [{'rel': 'data/a'}, 'data/b'],
+                        [{'rel': 'data/a'}, {'rel': 'data/b', 'kind': 'directory'}]):
+            with self.subTest(entries=entries), mock.patch.object(self.service, 'probe') as observe:
+                status, _ = self.request(server, {'entries': entries}, route='/probe-batch')
+                self.assertEqual(status, 400)
+                observe.assert_not_called()
+        status, _ = self.request(server, {'entries': [{'rel': 'data/a'}]},
+                                 route='/probe-batch', auth=False)
+        self.assertEqual(status, 401)
+        status, _ = self.request(server, b'x' * (probe.MAX_BODY + 1), route='/probe-batch')
+        self.assertEqual(status, 413)
+
+    def test_batches_share_reusable_bounded_metadata_workers(self):
+        gate = threading.Event()
+        entered = threading.Event()
+        thread_ids = set()
+        original_stop = self.service.stopped
+        original_open = probe._open_parent
+
+        def stop():
+            entered.set()
+            gate.wait(3)
+            return original_stop()
+
+        def open_parent(*args, **kwargs):
+            thread_ids.add(threading.get_ident())
+            return original_open(*args, **kwargs)
+
+        entries = [{'rel': 'data/' + str(index)} for index in range(8)]
+        with mock.patch.object(self.service, 'stopped', side_effect=stop), \
+                mock.patch.object(probe, '_open_parent', side_effect=open_parent):
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as requester:
+                first = requester.submit(self.service.probe_batch, entries)
+                self.assertTrue(entered.wait(1))
+                deadline = time.monotonic() + 1
+                while self.service.inflight < 2 and time.monotonic() < deadline:
+                    time.sleep(.001)
+                self.assertEqual(self.service.inflight, 2)
+                gate.set()
+                result = first.result(timeout=3)
+            first_workers = set(thread_ids)
+            again = self.service.probe_batch(entries)
+        self.assertEqual([row['status'] for row in result['results']], [200] * 8)
+        self.assertEqual([row['status'] for row in again['results']], [200] * 8)
+        self.assertEqual(len(first_workers), 2)
+        self.assertEqual(thread_ids, first_workers)
+        self.assertEqual(self.service.peak_inflight, 2)
+        self.assertEqual(self.service.inflight, 0)
+
+    def test_batch_stop_returns_failure_for_every_entry_without_metadata(self):
+        (self.control / 'STOP').write_text('fixture stop\n')
+        with mock.patch.object(probe, '_open_parent') as opener:
+            result = self.service.probe_batch([{'rel': 'data/a'}, {'rel': 'data/b'}])
+        self.assertEqual([row['status'] for row in result['results']], [503, 503])
+        opener.assert_not_called()
 
     def test_scope_and_slot_validation_are_fixed(self):
         for cfg in (dict(self.cfg, source='/home'), dict(self.cfg, destination='/tmp/other'),

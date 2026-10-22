@@ -79,7 +79,7 @@ class InterleavedTargetFilterResume(PriorityFeedTargetFilterResume):
         scanner = _Scanner(None, None, 1024**3, 64, cache['hardlinks'], None, 3)
         scanner.stats = cache['stats']
         seeded = cache['seeded_paths']
-        extra = Path(meta['cache']).parent / 'tail-orphans.jsonl'
+        extra = Path(meta['cache']).parent / ('tail-orphans-'+self.adoption.name+'.jsonl')
         source_dev = os.stat(self.cfg['source']).st_dev
         issues = []
         with open(source, 'rb') as src, open(self.combined_manifest, 'ab') as out, open(extra, 'xb') as spool:
@@ -118,7 +118,7 @@ class InterleavedTargetFilterResume(PriorityFeedTargetFilterResume):
                 os.fsync(handle.fileno())
         self.recovery_replay.update(phase='fresh_scan', seeded_records=len(seeded),
                                    deferred=meta['orphans'], consumed=0,
-                                   strategy='interleaved-large-first')
+                                   strategy='interleaved-large-first', tail_spool=str(extra))
         return scanner, [*meta['spools'], str(extra)], issues
 
     def supplement_missing(self):
@@ -130,14 +130,38 @@ class InterleavedTargetFilterResume(PriorityFeedTargetFilterResume):
         selected_bytes = 0
         counts = {'submitted': 0, 'checked': 0, 'missing': 0, 'peak_inflight': 0}
         last_save = time.monotonic()
-        pool = concurrent.futures.ThreadPoolExecutor(max_workers=self.filter_workers,
-                                                     thread_name_prefix='target-exists')
+        processes = int(self.cfg.get('metadata_client_processes', 0))
+        batch_size = int(self.cfg.get('metadata_client_batch_size', 64)) if processes else 1
+        if not 1 <= batch_size <= 128:
+            raise ValueError('metadata batch must be within1..128')
+        if processes:
+            from migration_probe_processes import ProcessProbePool
+            pool = ProcessProbePool(self.control, self.cfg, processes=processes,
+                                    threads=int(self.cfg.get('metadata_threads_per_process', 64)))
+        else:
+            pool = concurrent.futures.ThreadPoolExecutor(max_workers=self.filter_workers,
+                                                        thread_name_prefix='target-exists')
+        offered = []
+        inflight = 0
+        self.supply_metrics.update(metadata_processes=processes, metadata_batch_size=batch_size,
+                                   metadata_cpu_seconds=0.0, metadata_child_pids=[])
+        scan_processes = int(self.cfg.get('source_scan_processes', 0))
+        self.supply_metrics.update(source_scan_processes=scan_processes,
+                                   source_threads_per_process=int(self.cfg.get('source_scan_threads_per_process',16)))
+
+        def submit_offered():
+            if not offered:
+                return
+            batch = list(offered)
+            offered.clear()
+            future = pool.submit(batch) if processes else pool.submit(self._probe_missing, batch[0])
+            pending[future] = batch
 
         def checkpoint(force=False):
             nonlocal last_save
             self._check_stop()
             if force or time.monotonic()-last_save >= 3:
-                self.save(target_filter=dict(counts, inflight=len(pending)), next_task_id=self.next_task_id)
+                self.save(target_filter=dict(counts, inflight=inflight), next_task_id=self.next_task_id)
                 last_save = time.monotonic()
 
         def flush():
@@ -149,41 +173,64 @@ class InterleavedTargetFilterResume(PriorityFeedTargetFilterResume):
                 selected_bytes = 0
 
         def harvest(block=False):
-            nonlocal selected_bytes
+            nonlocal selected_bytes, inflight
             if not pending:
                 return
             done, _ = concurrent.futures.wait(pending, timeout=.1 if block else 0,
                                               return_when=concurrent.futures.FIRST_COMPLETED)
             for future in done:
-                pending.pop(future)
-                entry = future.result()
-                counts['checked'] += 1
-                if entry is None or entry['rel'] in self.assigned or entry['rel'] in selected_rels:
-                    continue
-                size = entry.get('size', 0) if entry['kind'] == 'file' else 0
-                if selected and (len(selected) >= self.scan_batch_files or selected_bytes+size > 1024**3):
-                    flush()
-                selected.append(entry)
-                selected_rels.add(entry['rel'])
-                selected_bytes += size
-                counts['missing'] += 1
-                if len(selected) >= self.scan_batch_files or selected_bytes >= 1024**3:
-                    flush()
+                batch = pending.pop(future)
+                result = future.result()
+                if processes:
+                    entries = result['entries']
+                    if len(entries) != len(batch) or any(e is not None and e['rel'] != original['rel']
+                                                        for e, original in zip(entries, batch)):
+                        raise ValueError('metadata child returned mismatched batch')
+                    delta = result['probe_delta']
+                    with self._probe_lock:
+                        self._probe_counts.update(delta['counts'])
+                        for endpoint, values in delta['endpoints'].items():
+                            self._endpoint_counts[endpoint].update(values)
+                    self.supply_metrics['metadata_cpu_seconds'] += result['cpu_seconds']
+                    if result['pid'] not in self.supply_metrics['metadata_child_pids']:
+                        self.supply_metrics['metadata_child_pids'].append(result['pid'])
+                else:
+                    entries = [result]
+                inflight -= len(batch)
+                counts['checked'] += len(batch)
+                for entry in entries:
+                    if entry is None or entry['rel'] in self.assigned or entry['rel'] in selected_rels:
+                        continue
+                    size = entry.get('size', 0) if entry['kind'] == 'file' else 0
+                    if selected and (len(selected) >= self.scan_batch_files or selected_bytes+size > 1024**3):
+                        flush()
+                    selected.append(entry)
+                    selected_rels.add(entry['rel'])
+                    selected_bytes += size
+                    counts['missing'] += 1
+                    if len(selected) >= self.scan_batch_files or selected_bytes >= 1024**3:
+                        flush()
             checkpoint()
 
         def offer(entry):
+            nonlocal inflight
             if entry['rel'] in self.assigned or entry['rel'] in selected_rels:
                 return
-            pending[pool.submit(self._probe_missing, entry)] = entry['rel']
+            offered.append(entry)
+            inflight += 1
             counts['submitted'] += 1
-            counts['peak_inflight'] = max(counts['peak_inflight'], len(pending))
+            counts['peak_inflight'] = max(counts['peak_inflight'], inflight)
+            if len(offered) >= batch_size:
+                submit_offered()
 
         def fresh(entries):
             for entry in entries:
-                while len(pending) >= self.filter_limit:
+                while inflight >= self.filter_limit:
+                    submit_offered()
                     harvest(True)
                     self._check_stop()
                 offer(entry)
+            submit_offered()
             harvest()
             checkpoint()
 
@@ -205,8 +252,8 @@ class InterleavedTargetFilterResume(PriorityFeedTargetFilterResume):
             harvest()
             # Leave room for one fresh batch. Both streams use the same
             # reservation owner and same checked publication path.
-            room = max(0, self.filter_limit-self.scan_batch_files-len(pending))
-            for _ in range(min(256, room)):
+            room = max(0, self.filter_limit-self.scan_batch_files-inflight)
+            for _ in range(min(int(self.cfg.get('historical_candidates_per_tick', 2048)), room)):
                 try:
                     entry = next(candidates)
                 except StopIteration:
@@ -214,6 +261,7 @@ class InterleavedTargetFilterResume(PriorityFeedTargetFilterResume):
                     break
                 self.recovery_replay['consumed'] += 1
                 offer(entry)
+            submit_offered()
             # Don't retain a short large-file batch while source traversal is
             # idle: publication latency matters more than filling 64 slots.
             flush()
@@ -226,11 +274,13 @@ class InterleavedTargetFilterResume(PriorityFeedTargetFilterResume):
                                batch_bytes=1024**3, hardlink_index=seed.hardlinks,
                                control=str(self.control), initial_seeded_paths=self.prepared_values['seeded_paths'],
                                seed_stats=seed.stats, skip_seeded_nondirectories=True,
-                               append_manifest=True, on_tick=pump)
+                               append_manifest=True, on_tick=pump,
+                               processes=scan_processes,
+                               threads_per_process=int(self.cfg.get('source_scan_threads_per_process',16)))
             self.recovery_replay['phase'] = 'deferred_orphans'
             while not exhausted:
                 pump()
-                if len(pending) >= self.filter_limit-self.scan_batch_files:
+                if inflight >= self.filter_limit-self.scan_batch_files:
                     harvest(True)
             while pending:
                 harvest(True)

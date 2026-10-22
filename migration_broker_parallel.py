@@ -60,6 +60,11 @@ class Broker(OriginalBroker):
                 "SELECT id,lease,payload,running FROM claims "
                 "WHERE stage=? AND owner=? AND status='leased'", (stage, owner)).fetchone()
 
+    def running_path(self, stage, owner, task_id):
+        """Allocate markers for new leases; persisted lease paths stay authoritative."""
+        return self.control / 'stages' / stage / 'running' / (
+            'broker--' + owner + '--' + str(task_id) + '.json')
+
     def _candidate(self, stage):
         # This mutex only serializes ready-cache enumeration. In particular,
         # slow getdents/stat calls never hold the SQLite or completion locks.
@@ -137,8 +142,7 @@ class Broker(OriginalBroker):
                         raise RuntimeError('queue payload id mismatch')
                     payload = json.dumps(task, ensure_ascii=True)
                     lease = uuid.uuid4().hex
-                    running = self.control / 'stages' / stage / 'running' / (
-                        'broker--' + owner + '--' + str(task_id) + '.json')
+                    running = self.running_path(stage, owner, task_id)
                     state = self._state()
                     with self.lock:
                         if owner.rsplit('-', 1)[0] in self.draining_hosts:
