@@ -22,6 +22,7 @@ import collections
 import datetime as dt
 import json
 import pathlib
+import re
 import sys
 import time
 import unicodedata
@@ -39,6 +40,7 @@ FIELDS = ('discovered_files', 'discovered_bytes', 'verified_files', 'verified_by
 PHASE_NAMES = {'1': 'home/hcr', '2': 'repos/cosmos-framework-pwm', '3': '其余 eai_pwm',
                '4': '/share/project → /share-mixed/project'}
 STATUS_NAMES = {'scanning': '扫描并复制', 'copying': '复制', 'finalizing': '整理元数据',
+                'producer_paused': '生产端故障，已停止供给',
                 'preparing_resume': '恢复检查点', 'starting': '启动', 'phase_complete': '阶段完成',
                 'waiting_resume_index': '等待后台恢复索引',
                 'complete': '完成', 'complete_with_changes': '完成（有待处理变化）',
@@ -138,6 +140,68 @@ def phases_with_extension(phases, plan):
     return result
 
 
+def publication_probe_baseline(root, config, state, warnings):
+    """Read this producer handover's frozen counters, never mutate live rates.
+
+    Only the pipelined entrypoint resets these process-local probe counters.
+    Its immutable handover bundle provides the preceding observation count;
+    this is not a unique-file ledger and must not enter endpoint error rates.
+    """
+    publication = state.get('task_publication')
+    if not isinstance(publication, dict) or publication.get('scope') != 'warm-recovery-only':
+        return None
+    result = {'complete': False, 'counts': {}, 'operation': None}
+    try:
+        control = root.resolve()
+        supplied = state.get('foreground_handover')
+        if not isinstance(supplied, str) or not pathlib.Path(supplied).is_absolute():
+            raise ValueError('缺少有效的 foreground_handover 路径')
+        handover_path = pathlib.Path(supplied).resolve()
+        bundle = handover_path.parent
+        matched = re.fullmatch(r'pipelined-producer-([0-9a-f]{32})', bundle.name)
+        if (handover_path.name != 'handover.json' or bundle.parent != control
+                or matched is None):
+            raise ValueError('交接路径不是当前 control 内的发布池交接目录')
+        operation = matched.group(1)
+        result['operation'] = operation
+        checkpoint_path = bundle / 'frozen-checkpoint.json'
+        # Also reject symlink escapes for the canonical files and immutable
+        # snapshot directories before asking migration_io to read a version.
+        for path in (handover_path, checkpoint_path):
+            for candidate in (path, path.parent / '.snapshots' / path.name):
+                if not candidate.resolve().is_relative_to(control):
+                    raise ValueError('交接或检查点路径逃逸到当前 control 外')
+        local_warnings = []
+        handover = read_json(handover_path, local_warnings, required=True)
+        checkpoint = read_json(checkpoint_path, local_warnings, required=True)
+        if local_warnings:
+            raise ValueError('; '.join(local_warnings))
+        if (handover.get('control') != str(control)
+                or handover.get('stage') != 'p3-r3'
+                or handover.get('operation') != operation
+                or checkpoint.get('version') != 1
+                or checkpoint.get('status') != 'frozen_checkpoint'
+                or checkpoint.get('control') != str(control)
+                or checkpoint.get('bundle') != str(bundle)
+                or checkpoint.get('operation') != operation
+                or checkpoint.get('handover') != handover):
+            raise ValueError('交接/冻结检查点的 control、operation 或 bundle 证据不一致')
+        frozen = checkpoint.get('frozen_state')
+        if not isinstance(frozen, dict) or frozen.get('stage') != 'p3-r3' or frozen.get('recovery_warm') is not True:
+            raise ValueError('冻结检查点不是当前恢复队列')
+        if frozen.get('run_id') is not None and frozen.get('run_id') != config.get('run_id'):
+            raise ValueError('冻结检查点的 run_id 不匹配')
+        counts = frozen.get('distributed_target_probe', {}).get('counts', {})
+        existing = counts.get('remote_existing') if isinstance(counts, dict) else None
+        if type(existing) is not int or existing < 0:
+            raise ValueError('冻结检查点缺少有效的 remote_existing 历史命中次数')
+        result.update(complete=True, counts={'remote_existing': existing}, checkpoint=str(checkpoint_path))
+    except (OSError, ValueError, TypeError, AttributeError, RuntimeError) as exc:
+        result['error'] = str(exc)
+        warnings.append('历史目标存在检查基线不可用，累计命中仅显示已知下限：' + str(exc))
+    return result
+
+
 def snapshot(control=None, pointer=DEFAULT_POINTER):
     warnings = []
     if control is None:
@@ -149,6 +213,7 @@ def snapshot(control=None, pointer=DEFAULT_POINTER):
     root = pathlib.Path(control)
     config = read_json(root / 'config.json', warnings, required=True)
     state = read_json(root / 'state.json', warnings, required=True)
+    probe_baseline = publication_probe_baseline(root, config, state, warnings)
     seed_progress = read_json(root / 'seed-progress.json', warnings)
     if not seed_progress and isinstance(state.get('seed_progress'), dict):
         seed_progress = dict(state['seed_progress'])
@@ -245,7 +310,7 @@ def snapshot(control=None, pointer=DEFAULT_POINTER):
         nodes.append({'host': value.get('host'),
                       'threads': value.get('threads', config.get('threads')),
                       'active_threads': len(active) if isinstance(active, (dict, list)) else None,
-                      'counts': value.get('counts', {}), 'bytes': number(value.get('bytes')) or 0,
+                      'counts': value.get('counts', {}), 'bytes': number(value.get('bytes')),
                       'streamed_bytes': number(value.get('streamed_bytes')),
                       'verified_files': number(value.get('verified_files')),
                       'verified_bytes': number(value.get('verified_bytes')),
@@ -334,7 +399,7 @@ def snapshot(control=None, pointer=DEFAULT_POINTER):
                 'unique_bytes_upper_bound': historical_bytes + current_bytes,
                 'reason': '历史索引与恢复队列存在路径/版本重叠；边界仅表示累计证据，不代表当前路径容量',
             }
-    return {'control': str(root), 'source': config.get('source'), 'destination': config.get('destination'),
+    view = {'control': str(root), 'source': config.get('source'), 'destination': config.get('destination'),
             'extension_plan': extension_plan, 'current_run_overall': current_run_overall,
             'status': state.get('status', progress.get('status', 'unknown')),
             'phase': state.get('phase', progress.get('phase')),
@@ -356,6 +421,11 @@ def snapshot(control=None, pointer=DEFAULT_POINTER):
             'distributed_target_nodes': state.get('distributed_target_nodes', 0),
             'distributed_target_slots_per_node': config.get('target_probe_slots_per_node'),
             'distributed_target_probe': state.get('distributed_target_probe', {}),
+            'distributed_target_probe_baseline': probe_baseline,
+            'recovery_replay': state.get('recovery_replay', {}),
+            'task_publication': state.get('task_publication', {}),
+            'producer_error': state.get('producer_error'),
+            'producer_nofile': state.get('producer_nofile'),
             'scan_batch_files': config.get('scan_batch_files'),
             'stage': stage_name,
             'updated': max((value for value in (progress.get('updated'), state.get('updated'),
@@ -377,12 +447,64 @@ def snapshot(control=None, pointer=DEFAULT_POINTER):
             'resume_index': resume_index,
             'cumulative_evidence': cumulative_evidence,
             'seed_progress': seed_progress,
-            'new_copied_bytes': sum(n['bytes'] for n in nodes),
+            'new_copied_bytes': (sum(n['bytes'] for n in nodes)
+                                 if nodes and all(n['bytes'] is not None for n in nodes) else None),
             'streamed_bytes': (sum(n['streamed_bytes'] for n in nodes)
                                if nodes and all(n['streamed_bytes'] is not None for n in nodes)
                                else number(metrics.get('streamed_bytes'))),
             'rate_bytes_per_second': None, 'eta_seconds': None,
             'nodes': nodes, 'warnings': warnings}
+    view['copy_work_progress'] = copy_work_progress(view)
+    return view
+
+
+def copy_work_progress(view):
+    """Summarize observed work without inventing a unique-path ledger.
+
+    Existing probes count successful existence observations, not verified
+    bytes. Warm discovered counters count published work, unlike inventory
+    totals. Worker acknowledgements can lag/replay, so their queue difference
+    is only an estimate and a negative difference is unknown, never zero.
+    """
+    nodes = view.get('nodes', [])
+    copied = [number(n.get('counts', {}).get('copied')) for n in nodes]
+    copied_files = sum(copied) if copied and all(n is not None for n in copied) else None
+    probe_counts = view.get('distributed_target_probe', {}).get('counts', {})
+    existing_checks = number(probe_counts.get('remote_existing'))
+    existing_lower_bound = False
+    probe_baseline = view.get('distributed_target_probe_baseline')
+    if isinstance(probe_baseline, dict):
+        previous = number(probe_baseline.get('counts', {}).get('remote_existing'))
+        if probe_baseline.get('complete') is True and previous is not None:
+            if existing_checks is None:
+                existing_checks = previous
+                existing_lower_bound = True
+            else:
+                existing_checks += previous
+        else:
+            # A missing checkpoint is not a historical count of zero.
+            existing_lower_bound = existing_checks is not None
+    pending = {'files': None, 'bytes': None}
+    skew = False
+    if view.get('recovery_warm'):
+        queued = view.get('recovery_warm_progress', {})
+        completed = view.get('current_stage', {})
+        for field in pending:
+            total = number(queued.get('discovered_' + field))
+            done = number(completed.get('verified_' + field))
+            if total is not None and done is not None:
+                if total >= done:
+                    pending[field] = total - done
+                else:
+                    skew = True
+    return {'copied_files': copied_files,
+            'copied_bytes': number(view.get('new_copied_bytes')) if nodes else None,
+            'existing_checks': existing_checks,
+            'existing_checks_lower_bound': existing_lower_bound,
+            'existing_bytes': None,
+            'pending_files': pending['files'], 'pending_bytes': pending['bytes'],
+            'pending_estimated': view.get('recovery_warm') is True,
+            'snapshot_skew': skew}
 
 
 def sample_epoch(value):
@@ -710,7 +832,115 @@ def seed_progress_lines(seed):
     return lines
 
 
-def render(view):
+def node_progress_lines(view):
+    rows = []
+    for node in view.get('nodes', []):
+        label = '-'.join(str(node.get('host', '-')).split('-')[-2:])
+        heartbeat = number(node.get('heartbeat_age_seconds'))
+        heartbeat = f'{heartbeat:.0f}s' if heartbeat is not None else '未知'
+        counters = node.get('counts', {})
+        counters = ', '.join(f'{k}={v}' for k, v in sorted(counters.items())) if isinstance(counters, dict) else '-'
+        rows.append([label, f"{count(node.get('active_threads'))}/{count(node.get('threads'))}",
+                     size(node.get('bytes')), count(node.get('verified_files')),
+                     size(node.get('verified_bytes')), heartbeat, counters])
+    if not rows:
+        return ['尚无节点心跳。']
+    active = sum(number(n.get('active_threads')) or 0 for n in view['nodes'])
+    threads = sum(number(n.get('threads')) or 0 for n in view['nodes'])
+    lines = [f"合计 {len(rows)} 个节点 · 活跃 {count(active)}/{count(threads)} 线程", '']
+    lines.extend(aligned_table(['节点', '活跃/总线程', '本次新复制', '核验次数',
+                                '核验字节', '心跳', '结果计数'], rows,
+                               right_align=(1, 2, 3, 4, 5)))
+    return lines
+
+
+def copy_speed_lines(view):
+    """Show recent logical copy rates only with enough fresh telemetry."""
+    metric_age = number(view.get('metrics_sample_age_seconds'))
+    stale = view.get('eta_metrics_stale') is True or (metric_age is not None and metric_age > 30)
+    rows = []
+    for key, label in (('1m', '近1分钟'), ('5m', '近5分钟')):
+        rate = view.get('rates', {}).get(key, {})
+        seconds = number(rate.get('seconds'))
+        if stale:
+            copied = streamed = '已过期'
+        elif seconds is None or seconds < 30:
+            copied = streamed = '采样中'
+        elif metric_age is None:
+            copied = streamed = '未知'
+        else:
+            copied_rate = number(rate.get('copied_bytes_per_second'))
+            streamed_rate = number(rate.get('streamed_bytes_per_second'))
+            copied = size(copied_rate) + '/s' if copied_rate is not None else '未知'
+            streamed = size(streamed_rate) + '/s' if streamed_rate is not None else '未知'
+        rows.append([label, f'{seconds:.0f}s' if seconds is not None else '未知', copied, streamed])
+    return ['复制速度（逻辑字节）：'] + aligned_table(
+        ['窗口', '有效采样', '新复制完成', '传输写入'], rows, right_align=(1, 2, 3))
+
+
+def render(view, details=False):
+    if details:
+        return render_details(view)
+    work = copy_work_progress(view)
+    status = view.get('status') or 'unknown'
+    status_text = STATUS_NAMES.get(status, status)
+    if (status == 'scanning'
+            and view.get('recovery_replay', {}).get('phase') == 'inventory_replay'):
+        status_text = '恢复清单（尚未恢复新任务供给）'
+    data_age = age(view.get('updated'), time.time())
+    age_text = f'{data_age:.0f}s' if data_age is not None else '未知'
+    lines = ['=' * 96,
+             f"复制进度开始  |  {display_time(view.get('sampled_at') or view.get('updated'))}",
+             '-' * 96,
+             f"状态：{status_text}  |  数据年龄：{age_text}",
+             '', '【整体进度】']
+    existing = work['existing_checks']
+    existing_text = count(existing) + ' 次命中' if existing is not None else '未知'
+    if work.get('existing_checks_lower_bound'):
+        existing_text = '至少 ' + existing_text + '（已知下限）'
+    rows = [
+        ['本次新复制', count(work['copied_files']) + ' 项', size(work['copied_bytes'])],
+        ['已探明无需新复制（目标已存在）',
+         existing_text, '未知（未记录）'],
+        ['已探明待复制/确认（估算，含在途）',
+         '约 ' + count(work['pending_files']) + ' 项' if work['pending_files'] is not None else
+         ('同步中' if work['snapshot_skew'] else '未知'),
+         '约 ' + size(work['pending_bytes']) if work['pending_bytes'] is not None else
+         ('同步中' if work['snapshot_skew'] else '未知')],
+    ]
+    lines.extend('  ' + line for line in aligned_table(['分类', '数量', '逻辑字节'], rows, right_align=(1, 2)))
+    lines.append('')
+    lines.extend('  ' + line for line in copy_speed_lines(view))
+    lines.append('  已存在仅做存在检查，待正式内容核验；待复制量按队列差值估算，含重试。')
+    if not view.get('overall', {}).get('inventory_complete'):
+        suffix = '；第4项尚未纳入' if pending_extension(view.get('extension_plan')) else ''
+        lines.append('  范围：本次已探明部分，扫描未结束' + suffix + '。')
+    if work['snapshot_skew']:
+        lines.append('  部分队列与完成快照尚未同步，未将负差显示为零。')
+    problems = list(view.get('warnings', []))
+    if status == 'producer_paused' and view.get('producer_error'):
+        error_lines = str(view['producer_error']).strip().splitlines()
+        problems.insert(0, '生产端错误：' + error_lines[-1])
+    if view.get('resume_index_error'):
+        problems.append('恢复索引异常：' + str(view['resume_index_error']))
+    for node in view.get('nodes', []):
+        if node.get('last_error'):
+            problems.append('-'.join(str(node.get('host', '-')).split('-')[-2:]) + '：' + str(node['last_error']))
+        heartbeat = number(node.get('heartbeat_age_seconds'))
+        if node.get('ended') or (heartbeat is not None and heartbeat > 180):
+            problems.append('-'.join(str(node.get('host', '-')).split('-')[-2:]) + '：进程已结束或心跳延迟')
+    if data_age is not None and data_age > 60:
+        problems.append(f'整体进度已 {data_age:.0f}s 未更新')
+    for problem in problems[:3]:
+        lines.append('  注意：' + str(problem).replace('\n', ' ')[:180])
+    if len(problems) > 3:
+        lines.append(f'  另有 {len(problems) - 3} 条异常，使用 --details 查看。')
+    lines.extend(['', '【节点明细】'])
+    lines.extend('  ' + line for line in node_progress_lines(view))
+    return '\n'.join(lines)
+
+
+def render_details(view):
     overall = view['overall']
     status = view.get('status') or 'unknown'
     status_text = ('后台并行收尾' if view.get('pipeline') and status == 'finalizing'
@@ -1044,6 +1274,7 @@ def main(argv=None):
     parser.add_argument('--watch', nargs='?', const=5.0, type=float, metavar='SECONDS',
                         help='持续刷新，默认每 5 秒')
     parser.add_argument('--json', action='store_true', help='输出一次 JSON')
+    parser.add_argument('--details', action='store_true', help='显示阶段、历史证据、配置及后台任务详情')
     args = parser.parse_args(argv)
     if args.json and args.watch is not None:
         parser.error('--json 输出一次，不能与 --watch 同用')
@@ -1059,7 +1290,7 @@ def main(argv=None):
             else:
                 if args.watch is not None and sys.stdout.isatty():
                     print('\033[2J\033[H', end='')
-                print(render(view), flush=True)
+                print(render(view, details=args.details), flush=True)
             if args.watch is None:
                 return 0 if view.get('control') else 1
             time.sleep(args.watch)

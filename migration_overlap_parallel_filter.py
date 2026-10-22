@@ -129,7 +129,20 @@ class ParallelFilterResume(OverlapResume):
         self.assigned = set()
         self.assigned_tasks = Path(self.handover['assigned_tasks_path']).resolve()
         maximum = -1
-        for task in _task_records(self.assigned_tasks):
+        self.prepared_resume = None
+        assignment_input = self.assigned_tasks
+        if self.handover.get('prepared_resume'):
+            from migration_prepared_resume import load_checkpoint
+            self.prepared_resume, self.prepared_values = load_checkpoint(self.handover, self.control)
+            self.assigned = self.prepared_values['assigned']
+            maximum = self.prepared_resume['maximum_id']
+            assignment_input = Path(self.handover['assignment_delta_path']).resolve()
+            if not assignment_input.is_relative_to(self.control):
+                raise ValueError('assignment delta must remain in this control')
+            from migration_prepared_resume import digest_file
+            if digest_file(assignment_input) != self.handover.get('assignment_delta_sha256'):
+                raise ValueError('assignment delta digest mismatch')
+        for task in _task_records(assignment_input):
             maximum = max(maximum, task['id'])
             self.assigned.update(entry['rel'] for entry in task['entries'])
         self.next_task_id = self.handover['next_task_id']
@@ -149,7 +162,11 @@ class ParallelFilterResume(OverlapResume):
             raise RuntimeError('this foreground handover has already been consumed')
         self.adoption.mkdir(parents=True)
         self.combined_manifest = self.control / 'manifests' / ('recovery-missing-parallel-' + digest + '.jsonl')
-        if self.combined_manifest.exists():
+        if self.prepared_resume:
+            self.combined_manifest = Path(self.prepared_resume['manifest']).resolve()
+            if not self.combined_manifest.is_relative_to(self.control) or not self.combined_manifest.is_file():
+                raise ValueError('prepared manifest must exist within this control')
+        elif self.combined_manifest.exists():
             raise FileExistsError(str(self.combined_manifest))
         self.old_manifests = [Path(self.handover[key]).resolve() for key in ('warm_manifest', 'missing_manifest')]
         for path in self.old_manifests:

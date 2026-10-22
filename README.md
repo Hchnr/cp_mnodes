@@ -4,6 +4,9 @@
 
 ## 仓库导航
 
+- [迁移进度报告（2026-10-22）](docs/report_20261022.md)：截至采样时刻的进度、1 PB 条件预测、瓶颈与对应改进。
+当前恢复供给入口为 `migration_interleaved_target_filter.py`：已发现候选和新扫描交错处理，并使用预备缓存避免完整历史重放。源目录遍历仍为 master 单进程多线程，目标检查分布式；不要混淆两者。训练守护可用运行配置 `training_watchdog_enabled=false` 显式禁用。本次固定身份恢复/滚动脚本不是通用重启命令，详见设计文档。
+
 - [设计文档](docs/design.md)：架构、断点续传、性能瓶颈与对应优化，以及仍需验证的边界。
 - `migration_*.py`：复制、扫描、协调、状态与观测模块；`test_*.py`：对应的本地测试。
 - 历史 `deploy_*`、`start_*`、`rollout_*` 等脚本是运维记录，不是安全的通用启动入口；请先读下方“历史运维脚本”。
@@ -114,6 +117,8 @@ python3 migration_progress.py --control <控制目录> --json
 python3 /share-mixed/project/.hcr-copy-monitor/progress.py --watch
 ```
 
+默认界面只显示整体进度和节点表：本次新复制、预检发现目标已存在，以及已入队待复制/确认的估算余量；整体进度内显示近 1 分钟、5 分钟的新复制完成与传输写入速度。速度按逻辑字节计量，样本不足或指标过期时会明确标注。存在检查次数不等于已核验的唯一文件数，已有目标的总字节数尚未记录；待处理量含在途及重试，计数快照不一致时显示“同步中”。这些分类不额外累加历史成功证据。使用 `--details` 查看阶段、历史索引、配置和后台任务，`--json` 保留完整机器可读状态。更新监控代码后，已打开的 `--watch` 需退出并重新执行，复制任务无需重启。
+
 监控的历史恢复量与本轮确认量可能重叠，不能相加。未完成全范围清点时，总规模只能是下限，不能给出完整百分比或准确 ETA。逻辑传输字节包含稀疏文件长度，不等于存储物理带宽。
 
 ## 已登记的迁移范围
@@ -133,4 +138,36 @@ python3 /share-mixed/project/.hcr-copy-monitor/progress.py --watch
 
 最终验收必须检查最新各轮的真实 summary / finalize、目录元数据、未解决 issues、全部队列和后台进程。`complete_with_changes` 需要逐项审阅差异，不能当作所有文件无条件一致。
 
+## 通过 SSH 桥接滚动调整状态缓存
+
+`rollout_cache_cluster.py` 通过已有 `copy-master-0`、`copy-worker-0` 等 SSH alias 连接，端口和跳板由 SSH 配置决定；逻辑节点名、owner 和控制目录保持不变。它顺序复用 `rollout_cache_age.py` 的 protocol 2，把缓存最长有效期显式设为 30 秒。状态刷新失败仍拒绝新领取任务，STOP 仍直接检查。
+
+使用前必须把已验证的 `rollout_cache_age.py` 与 `migration_io.py` 部署到当前控制目录下的新不可变 helper 目录，再显式传入路径和记录位置：
+
+```bash
+python3 rollout_cache_cluster.py \
+  --control <当前控制目录> \
+  --remote-script <当前控制目录>/<新helper目录>/rollout_cache_age.py \
+  --output <当前控制目录>/<新helper目录>/cluster-rollout.json \
+  --rounds 3 --gate-timeout 20 --visibility-timeout 30 --control-timeout 30
+```
+
+每次只处理一个节点的一个进程，先暂缓该节点领取新任务；只有租约为零、两次新心跳空闲、无数据文件描述符且进程身份完全匹配时才替换。其他节点和已在途的复制继续运行。空闲 gate 默认 5 秒、允许最多 30 秒；共享盘检查记录传播等待默认关闭，可用 `--visibility-timeout` 显式开启有界只读重查。等待期间如实际身份、活动任务或数据 FD 有变化，立即放弃本次替换；这些等待参数不放宽任何替换条件。忙碌进程会释放领取限制并留待后续轮次；替换结果不明时停止推进，保留现场核对，不能盲目重发。已有 30 秒配置也必须验证实际进程和健康状态才跳过。此调整不改变线程数、I/O 预算、复制引擎或文件校验逻辑；能否提升吞吐需要比较有效采样，不能只看活跃线程比例。
+
 本目录可能保留 `UPLOAD_INFO.json`、`SYNC_INFO_*.json` 和 `SHA256SUMS`，它们是上传时的历史快照记录，修改源码或文档后不再代表当前工作树，故不纳入 Git。运行控制目录中的回执、状态与访问令牌单独保留，不属于本代码仓库。
+
+控制 HTTP 等待默认 10 秒，`--control-timeout` 可显式设置为最多 60 秒；SSH 等待预算会相应增加。控制写入超时不代表没有生效，应先从 broker 实时接口及实际进程身份确认结果，再决定后续操作，不应盲目重发 drain、release 或 replace。
+
+## 恢复队列的并行任务发布
+
+`migration_pipelined_target_filter.py` 是需要明确 handover 的新生产进程入口，不能与旧 producer 同时启动。它仅优化恢复队列：主线程仍独占路径去重、任务 ID、SQLite 与统计，默认 8 路发布线程只负责不同任务文件的不可变发布，最多保留 64 个在途/未收集结果。发布成功才增加已供给量；扫描完成前等待全部发布结束。失败会排空已接受任务、保留未确认 payload 和下一 ID，并进入非终态 `producer_paused`，让复制服务保持在线等待检查。正式轮次仍走原实现。
+
+旧 producer 没有热配置接口，不能只修改线程参数就声称生效。生产进程交接必须核对 PID、启动时刻、完整参数和 coordinator 锁；在途文件、所有 pending/leased/done 任务及历史清单均要保留。无全节点 drain 时，交接任务采集顺序必须为 pending 后 claims，并按任务 ID 与完整 payload 去重。broker 的领取顺序可能有空洞，不能仅用最大 ID 做增量补漏。现有数千万条清单的重放仍可能耗时数分钟，需要在执行前明确新任务供给空窗；不可直接重跑历史部署脚本。
+
+只有该新入口支持 `CONTROL/producer-tuning.json` 的发布池热调，每约 10 秒检查一次。配置须包含精确 `control`、`run_id`、`scope="warm-publication-v1"`、新的 UUID hex `operation_id`、`publish_workers`（1–64）和 `publish_limit`（不小于 worker 数且不超过 4096）。使用 `migration_io.write_json` 发布。切换前先排空旧池，保留累计计数、assigned 和下一 ID；无效配置只报告 `tuning_error`，不会替换健康池。扫描结束后不重新开启发布池。实际参数及操作 ID 以 `state.task_publication` 为准，不能以写入配置成功代替生效验证。
+
+大量旧清单的恢复应使用 `migration_priority_feed_target_filter.py`：先在本地 `/tmp` spool 保存未分配的旧孤儿记录，不在清单重放中逐个发 HTTP 检查；优先扫描并发布新任务，再处理完整的旧孤儿 spool。`recovery_replay.phase` 明确区分 `inventory_replay`、`fresh_scan`、`deferred_orphans` 和 `complete`。旧路径只用于去重和统计，不冒充新复制；已种入清单的非目录项可利用目录条目类型避免重复元数据读取，但目录仍遍历，原文件变成目录时也不能漏掉新子项。原清单、assignment 和硬链信息保持完整，正式轮次默认扫描行为不变。
+
+生产端必须在读取配置、获取 coordinator 锁及发布状态之前自行校验 `RLIMIT_NOFILE`，不能依赖 SSH shell 继承旧进程的限额。`ensure_producer_nofile()` 将低 soft limit 提升到至少 65,536（保留更高值及原 hard limit），hard limit 不足时在产生任务前拒绝启动；`state.producer_nofile` 与实际 `/proc/PID/limits` 均应核实。回归测试从 1,024 soft limit 启动真实子进程并同时打开 1,536 个描述符，防止只靠 mock 漏掉这一启动路径。`recover_paused_producer.py` 仅用于确认死亡、队列已排空且发布结果确定的本次故障恢复，保留原账本字节并校验 SHA，再按完整 ID 区间补入新增 claims；不能作为通用自动重启器使用。
+
+不要仅按 JSON 解析速度估计恢复时间：一次实测约 540 万个旧目标命中被当作 orphan 重新发 HTTP 检查，约 700 项/秒，使预期数分钟的恢复变成小时级供给空窗。优先供给入口解决这个队头阻塞，而不是跳过孤儿核对。`deploy_pipelined_producer.py` 和 `safely_replace_replay_producer.py` 是该次显式交接及固定身份修正的审计工具，后者刻意绑定一次 predecessor；不能作为通用重启命令重跑。若退出检查遇到 `/proc/stat` 与清空 cmdline 的竞态，应继续有界等待退出证据；不确定时先核实 PID、锁和是否已经发起启动，再决定下一步，不能盲重试整次交接。

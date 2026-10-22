@@ -30,6 +30,10 @@ def main():
     parser=argparse.ArgumentParser();parser.add_argument('--control',required=True)
     c=pathlib.Path(parser.parse_args().control)
     cfg=read_json(c/'config.json')
+    if cfg.get('training_watchdog_enabled') is False:
+        write(c/'training-health.json', {'state':'disabled_by_user',
+              'updated':datetime.datetime.now(datetime.timezone.utc).isoformat()})
+        return
     log=pathlib.Path(cfg['training_log'])
     pids=elastic_processes()
     offset=log.stat().st_size if log.exists() else 0
@@ -44,6 +48,8 @@ def main():
         status['checks']+=1
         reason=None
         try:
+            if read_json(c/'config.json').get('training_watchdog_enabled') is False:
+                status['state']='disabled_by_user';write(c/'training-health.json',status);return
             state=read_json(c/'state.json')
             if state['status'] in ('complete','complete_with_changes','failed','stopped'):
                 status['state']='finished';write(c/'training-health.json',status);return

@@ -49,14 +49,20 @@ def phase3_relative(entry):
 
 
 class ProbeService:
-    def __init__(self, control, cfg, slots=32):
+    def __init__(self, control, cfg, slots=32, stop_cache_seconds=0):
         self.control = Path(control).resolve()
         if (cfg.get('source'), cfg.get('destination')) != (SOURCE, DESTINATION):
             raise ValueError('metadata probes are restricted to eai_pwm')
         if not isinstance(cfg.get('broker_token'), str) or not cfg['broker_token']:
             raise ValueError('private authentication token is required')
-        if type(slots) is not int or not 1 <= slots <= 32:
-            raise ValueError('metadata concurrency must be within1..32')
+        if type(slots) is not int or not 1 <= slots <= 128:
+            raise ValueError('metadata concurrency must be within1..128')
+        if not 0 <= stop_cache_seconds <= .1:
+            raise ValueError('STOP cache must be within 0..0.1 seconds')
+        self.stop_cache_seconds = stop_cache_seconds
+        self._stop_until = 0
+        self._stop_seen = False
+        self._stop_mutex = threading.Lock()
         self.cfg = cfg
         self.source_root, self.destination_root = cfg['source'], cfg['destination']
         self.slots = slots
@@ -74,7 +80,16 @@ class ProbeService:
         return hmac.compare_digest(supplied.encode('utf-8'), self.cfg['broker_token'].encode('utf-8'))
 
     def stopped(self):
-        return (self.control / 'STOP').exists()
+        if not self.stop_cache_seconds:
+            return (self.control / 'STOP').exists()
+        if self._stop_seen:
+            return True
+        if time.monotonic() >= self._stop_until:
+            with self._stop_mutex:
+                if time.monotonic() >= self._stop_until:
+                    self._stop_seen = (self.control / 'STOP').exists()
+                    self._stop_until = time.monotonic() + self.stop_cache_seconds
+        return self._stop_seen
 
     def current_source(self, original):
         rel = phase3_relative(original)
@@ -151,6 +166,7 @@ class ProbeService:
     def health(self):
         with self.mutex:
             return {'ok': True, **self.identity, 'started': self.started, 'slots': self.slots,
+                    'stop_cache_seconds': self.stop_cache_seconds,
                     'inflight': self.inflight, 'peak_inflight': self.peak_inflight,
                     'counts': dict(self.counts)}
 
@@ -280,6 +296,7 @@ def main():
     parser.add_argument('--port', type=int, default=0)
     parser.add_argument('--slots', type=int, default=32)
     parser.add_argument('--slots32', dest='slots', action='store_const', const=32)
+    parser.add_argument('--stop-cache-seconds', type=float, default=0)
     parser.add_argument('--record', required=True)
     parser.add_argument('--bind', default='0.0.0.0')
     parser.add_argument('--advertise-address')
@@ -290,7 +307,7 @@ def main():
         parser.error('role record must remain within the control directory')
     os.umask(0o077)
     cfg = read_json(control / 'config.json')
-    service = ProbeService(control, cfg, args.slots)
+    service = ProbeService(control, cfg, args.slots, args.stop_cache_seconds)
     if service.stopped():
         raise RuntimeError('STOP requested; probe service will not start')
     lock = open('/tmp/' + cfg['run_id'] + '-targetprobe.lock', 'a')
