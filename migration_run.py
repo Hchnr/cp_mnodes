@@ -69,10 +69,63 @@ def queue_dirs(control, stage):
 
 
 def queued_count(root):
-    pending = sum(sum(1 for p in (root / 'pending' / str(i)).iterdir()
-                      if p.name.endswith('.json')) for i in range(SHARDS))
-    running = sum(1 for p in (root / 'running').iterdir() if p.name.endswith('.json'))
-    return pending, running
+    """Count both legacy flat and new sharded markers without following links.
+
+    The count is conservative under concurrent publication, as before. Invalid
+    task-shaped entries raise instead of allowing a false empty-stage result.
+    Snapshot/temporary directories never count as queued tasks.
+    """
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, 'O_CLOEXEC', 0)
+    shard_names = frozenset(str(i) for i in range(SHARDS))
+
+    def tasks(fd):
+        total = 0
+        with os.scandir(fd) as entries:
+            for entry in entries:
+                if not entry.name.endswith('.json'):
+                    continue
+                if not entry.is_file(follow_symlinks=False):
+                    try:
+                        entry.stat(follow_symlinks=False)
+                    except FileNotFoundError:
+                        # A broker may have removed it after readdir.
+                        continue
+                    raise ValueError('queue task is not a regular file: ' + entry.name)
+                total += 1
+        return total
+
+    root_fd = _open_root(os.fspath(root))
+    try:
+        pending_fd = os.open('pending', flags, dir_fd=root_fd)
+        try:
+            pending = 0
+            for shard in range(SHARDS):
+                fd = os.open(str(shard), flags, dir_fd=pending_fd)
+                try:
+                    pending += tasks(fd)
+                finally:
+                    os.close(fd)
+        finally:
+            os.close(pending_fd)
+        running_fd = os.open('running', flags, dir_fd=root_fd)
+        try:
+            running = tasks(running_fd)
+            with os.scandir(running_fd) as entries:
+                for entry in entries:
+                    if entry.name not in shard_names:
+                        continue
+                    # O_NOFOLLOW rejects numeric shard symlinks, including
+                    # links replaced after readdir observed the shard name.
+                    fd = os.open(entry.name, flags, dir_fd=running_fd)
+                    try:
+                        running += tasks(fd)
+                    finally:
+                        os.close(fd)
+        finally:
+            os.close(running_fd)
+        return pending, running
+    finally:
+        os.close(root_fd)
 
 
 def same_snapshot(st, rec):

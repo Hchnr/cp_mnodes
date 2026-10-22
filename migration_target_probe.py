@@ -2,6 +2,7 @@
 """Authenticated, bounded, read-only target metadata probes on one copy node."""
 import argparse
 import collections
+import concurrent.futures
 import datetime
 import fcntl
 import hmac
@@ -24,6 +25,7 @@ from migration_worker import _components, _open_parent
 SOURCE = '/share/project/eai_pwm'
 DESTINATION = '/share-mixed/project/eai_pwm'
 MAX_BODY = 128 * 1024
+MAX_BATCH = 64
 
 
 class ProbeError(Exception):
@@ -73,6 +75,13 @@ class ProbeService:
         self.peak_inflight = 0
         self.started = datetime.datetime.now(datetime.timezone.utc).isoformat()
         self.identity = {}
+        # Batch requests share the same bounded workers for the service's
+        # lifetime. A batch neither creates a new pool nor bypasses fs_slots.
+        self.batch_pool = concurrent.futures.ThreadPoolExecutor(
+            max_workers=slots, thread_name_prefix='probe-metadata')
+
+    def close(self):
+        self.batch_pool.shutdown(wait=True, cancel_futures=False)
 
     def authorized(self, header):
         # Tokens are never included in replies, role records, or request logs.
@@ -163,10 +172,39 @@ class ProbeService:
                 self.counts['elapsed_milliseconds'] += int((time.monotonic() - began) * 1000)
             self.fs_slots.release()
 
+    def _batch_one(self, entry):
+        try:
+            return {'status': 200, 'result': self.probe(entry)}
+        except ProbeError as exc:
+            return {'status': exc.status, 'reason': exc.reason}
+        except OSError:
+            return {'status': 503, 'reason': 'metadata observation unavailable'}
+
+    def probe_batch(self, entries):
+        # Reject the whole request before any filesystem observation, so an
+        # invalid trailing entry cannot cause a partially accepted batch.
+        if not isinstance(entries, list) or not 1 <= len(entries) <= MAX_BATCH:
+            raise ProbeError(400, 'entries must contain between1 and64 objects')
+        for entry in entries:
+            phase3_relative(entry)
+        with self.mutex:
+            self.counts['batch_requests'] += 1
+            self.counts['batch_entries'] += len(entries)
+        try:
+            # map preserves input ordering while metadata runs concurrently.
+            results = list(self.batch_pool.map(self._batch_one, entries))
+        except RuntimeError:
+            raise ProbeError(503, 'metadata service is stopping') from None
+        with self.mutex:
+            self.counts['batch_failed_entries'] += sum(
+                result['status'] != 200 for result in results)
+        return {'ok': True, 'results': results}
+
     def health(self):
         with self.mutex:
             return {'ok': True, **self.identity, 'started': self.started, 'slots': self.slots,
                     'stop_cache_seconds': self.stop_cache_seconds,
+                    'batch_limit': MAX_BATCH,
                     'inflight': self.inflight, 'peak_inflight': self.peak_inflight,
                     'counts': dict(self.counts)}
 
@@ -207,7 +245,8 @@ class ProbeHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.authenticated():
             return
-        if urlsplit(self.path).path != '/probe':
+        route = urlsplit(self.path).path
+        if route not in ('/probe', '/probe-batch'):
             self.reply(404, {'ok': False, 'reason': 'unknown route'})
             return
         if self.headers.get('Transfer-Encoding'):
@@ -226,9 +265,11 @@ class ProbeHandler(BaseHTTPRequestHandler):
             if len(raw) != length:
                 raise ValueError('incomplete body')
             body = json.loads(raw)
-            if not isinstance(body, dict) or 'entry' not in body:
-                raise ValueError('entry object required')
-            response = self.server.service.probe(body['entry'])
+            field = 'entries' if route == '/probe-batch' else 'entry'
+            if not isinstance(body, dict) or field not in body:
+                raise ValueError('probe entries required')
+            response = (self.server.service.probe_batch(body[field])
+                        if route == '/probe-batch' else self.server.service.probe(body[field]))
         except ProbeError as exc:
             self.reply(exc.status, {'ok': False, 'reason': exc.reason})
             return
@@ -282,6 +323,12 @@ class BoundedProbeServer(ThreadingHTTPServer):
         # A client timeout/disconnect never dumps headers, bodies, or secrets.
         with self.service.mutex:
             self.service.counts['connection_errors'] += 1
+
+    def server_close(self):
+        try:
+            super().server_close()
+        finally:
+            self.service.close()
 
 
 def identity():

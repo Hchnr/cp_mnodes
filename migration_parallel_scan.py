@@ -101,7 +101,8 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
                workers=32, queue_size=8192, control=None, cancel=None,
                resume_records=None, skip_rel=None, seed_stats=None,
                skip_seeded_nondirectories=False, initial_seeded_paths=None,
-               append_manifest=False, on_tick=None):
+               append_manifest=False, on_tick=None, processes=0,
+               threads_per_process=16, process_batch_size=256):
     """Compatible scan_phase plus parallelism and explicit combined-manifest resume.
 
     resume_records must be complete parsed records from an older immutable
@@ -113,11 +114,18 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
     Cancellation raises ScanCancelled and leaves a readable partial manifest.
     skip_seeded_nondirectories avoids repeated leaf metadata/event work only
     for paths already represented by resume_records; directories still walk.
+    processes enables independent spawn-based readers, each using a bounded
+    name/selection/metadata exchange. The seeded set stays in the caller and
+    all manifest, hardlink and task callbacks retain their single owner.
     """
     if phase not in PHASE_PATHS:
         raise ValueError('phase must be 1, 2, or 3')
     if min(batch_bytes, batch_files, workers, queue_size) < 1:
         raise ValueError('batch, worker and queue limits must be positive')
+    if (not isinstance(processes, int) or not 0 <= processes <= 64
+            or not isinstance(threads_per_process, int) or not 1 <= threads_per_process <= 128
+            or not isinstance(process_batch_size, int) or not 1 <= process_batch_size <= 4096):
+        raise ValueError('invalid process reader limits')
     source_root = os.path.abspath(os.fspath(source_root))
     manifest_path = os.path.abspath(os.fspath(manifest_path))
     if os.path.commonpath((os.path.realpath(source_root), os.path.realpath(manifest_path))) == os.path.realpath(source_root):
@@ -139,6 +147,7 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
     seen_paths = set()
     threads = []
     anchor = None
+    process_metrics = None
 
     def external_cancelled():
         if cancel is not None:
@@ -339,28 +348,45 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
                         os.close(fd); fd = child_fd
                         consume({'rel': phase_rel, 'kind': 'directory', **_stat_fields(os.fstat(fd))})
                     else:
-                        schedule(phase_rel, os.fstat(fd))
-                        for index in range(min(256, int(workers))):
-                            thread = threading.Thread(target=reader, name='scan-dir-' + str(index), daemon=True)
-                            threads.append(thread); thread.start()
-                        last_cancel_check = 0
-                        while True:
-                            if time.monotonic() - last_cancel_check >= 0.1:
+                        if processes:
+                            from migration_process_scan import walk
+
+                            def check_process_cancel():
                                 if external_cancelled():
-                                    raise ScanCancelled('STOP requested during parallel scan')
-                                last_cancel_check = time.monotonic()
-                                if on_tick is not None:
-                                    on_tick()
-                            try:
-                                entry = events.get(timeout=0.1)
-                            except queue.Empty:
-                                with pending_lock:
-                                    if outstanding[0] == 0:
-                                        break
-                                continue
-                            if '_fatal' in entry:
-                                raise entry['_fatal']
-                            consume(entry)
+                                    raise ScanCancelled('STOP requested during process scan')
+
+                            root_stat, phase_stat = os.fstat(anchor), os.fstat(fd)
+                            process_metrics = walk(
+                                source_root, (root_stat.st_dev, root_stat.st_ino),
+                                phase_rel, (phase_stat.st_dev, phase_stat.st_ino), phase, consume,
+                                seeded_paths=seeded_paths,
+                                skip_seeded_nondirectories=skip_seeded_nondirectories,
+                                processes=processes, threads_per_process=threads_per_process,
+                                batch_size=process_batch_size, queue_size=queue_size,
+                                check_cancel=check_process_cancel, on_tick=on_tick)
+                        else:
+                            schedule(phase_rel, os.fstat(fd))
+                            for index in range(min(256, int(workers))):
+                                thread = threading.Thread(target=reader, name='scan-dir-' + str(index), daemon=True)
+                                threads.append(thread); thread.start()
+                            last_cancel_check = 0
+                            while True:
+                                if time.monotonic() - last_cancel_check >= 0.1:
+                                    if external_cancelled():
+                                        raise ScanCancelled('STOP requested during parallel scan')
+                                    last_cancel_check = time.monotonic()
+                                    if on_tick is not None:
+                                        on_tick()
+                                try:
+                                    entry = events.get(timeout=0.1)
+                                except queue.Empty:
+                                    with pending_lock:
+                                        if outstanding[0] == 0:
+                                            break
+                                    continue
+                                if '_fatal' in entry:
+                                    raise entry['_fatal']
+                                consume(entry)
                 finally:
                     os.close(fd)
             if external_cancelled():
@@ -369,11 +395,14 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
             if external_cancelled():
                 raise ScanCancelled('STOP requested during final batch')
             manifest.flush(); os.fsync(manifest.fileno())
-            return {**scanner.stats, 'source_root': source_root, 'manifest_path': manifest_path,
+            result = {**scanner.stats, 'source_root': source_root, 'manifest_path': manifest_path,
                     'elapsed_seconds': round(time.time() - started, 3),
                     'scan_complete': scanner.stats['errors'] == 0,
                     'fully_copyable': scanner.stats['unsupported'] == 0,
                     'workers': min(256, int(workers)), 'resumed_records': len(seeded_keys)}
+            if process_metrics is not None:
+                result['process_readers'] = process_metrics
+            return result
         finally:
             stop.set()
             for thread in threads:
