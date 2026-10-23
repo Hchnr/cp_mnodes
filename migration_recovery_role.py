@@ -23,7 +23,7 @@ import time
 from migration_io import read_json, write_json
 
 
-ROLES = ('broker', 'metrics', 'watchdog', 'primary', 'supplement', 'inventory', 'producer')
+ROLES = ('broker', 'metrics', 'watchdog', 'primary', 'supplement', 'inventory', 'producer', 'probe')
 TERMINAL = {'complete', 'complete_with_changes', 'failed', 'stopped'}
 BUNDLE = pathlib.Path(os.path.abspath(__file__)).parent
 LOCK_ROOT = pathlib.Path('/tmp')
@@ -60,12 +60,17 @@ def matching_processes(expected_argv):
     return sorted(result, key=lambda info: info['pid'])
 
 
-def role_argv(control, role, node_index=None):
+def role_argv(control, role, node_index=None, config=None):
     control = str(control)
     scripts = {'broker': 'migration_broker_parallel.py', 'metrics': 'migration_metrics.py',
                'watchdog': 'migration_watchdog.py', 'primary': 'migration_cached_worker.py',
                'supplement': 'migration_cached_worker.py', 'inventory': 'migration_inventory.py',
-               'producer': 'migration_fresh_resume.py'}
+               'producer': 'migration_fresh_resume.py', 'probe': 'migration_probe_fast_open.py'}
+    config = config or {}
+    if config.get('crash_recovery_v1'):
+        scripts.update(broker='migration_broker_sharded.py', producer='migration_crash_resume.py')
+        if config.get('cold_frontier_v1') is True:
+            scripts['producer'] = 'migration_cold_frontier.py'
     if role not in scripts:
         raise ValueError('unknown recovery role')
     if role == 'inventory':
@@ -85,10 +90,20 @@ def role_argv(control, role, node_index=None):
         command.extend(['--interval', '5'])
     elif role in ('primary', 'supplement'):
         command.extend(['--threads', '64'])
+        if config.get('crash_recovery_v1'):
+            command.extend(['--cache-max-age', '30'])
         if role == 'supplement':
             command.extend(['--nice', '0'])
     elif role == 'inventory':
         command.extend(['--node-index', str(node_index), '--rate', '100'])
+    elif role == 'producer' and config.get('crash_recovery_v1'):
+        command.extend(['--warm-tasks', str(pathlib.Path(control) / 'warm-tasks.jsonl')])
+    elif role == 'probe':
+        host = socket.gethostname()
+        address = config['node_addresses'][host]
+        command.extend(['--port', '40561', '--slots', '64', '--stop-cache-seconds', '0.1',
+                        '--advertise-address', address, '--record',
+                        str(pathlib.Path(control) / 'probe-roles' / (host + '.json'))])
     return command
 
 
@@ -137,7 +152,16 @@ def launch_role(control, role, node_index=None, restart=False):
     if any(not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9_.-]{1,180}', value)
            for value in (run_id, host)):
         raise ValueError('invalid run_id or host')
-    expected = role_argv(control, role, node_index)
+    if cfg.get('crash_recovery_v1'):
+        if host not in cfg.get('copy_hosts', []):
+            raise RuntimeError('physical host excluded from this recovery')
+        if role in ('producer', 'broker', 'metrics', 'watchdog') and host != cfg['master_host']:
+            raise RuntimeError('this role must stay on the recovery master')
+        if role == 'watchdog':
+            raise RuntimeError('training watchdog is disabled for this recovery')
+        from migration_run import validate_mounts
+        validate_mounts(cfg)
+    expected = role_argv(control, role, node_index, config=cfg)
     evidence = control / 'recovery-roles' / (host + '-' + role + '.json')
     lock_path = LOCK_ROOT / (run_id + '-recovery-launch-' + host + '-' + role + '.lock')
     with open(lock_path, 'a') as lock:

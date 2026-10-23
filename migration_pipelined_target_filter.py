@@ -41,11 +41,14 @@ def ensure_producer_nofile(minimum=65536):
 
 
 class PipelinedTargetFilterResume(DistributedTargetFilterResume):
-    def __init__(self, control, handover, *, publish_workers=8, publish_limit=64):
+    def __init__(self, control, handover, *, publish_workers=8, publish_limit=64,
+                 check_on_submit=True):
         if type(publish_workers) is not int or not 1 <= publish_workers <= 64:
             raise ValueError('publish_workers must be an integer between 1 and 64')
         if type(publish_limit) is not int or not publish_workers <= publish_limit <= 4096:
             raise ValueError('publish_limit must be between publish_workers and 4096')
+        if type(check_on_submit) is not bool:
+            raise TypeError('check_on_submit must be boolean')
         self._producer_nofile = ensure_producer_nofile()
         # Ancestor constructors call the virtual save() method.
         self._task_publisher = None
@@ -55,6 +58,7 @@ class PipelinedTargetFilterResume(DistributedTargetFilterResume):
         self._publication_successes = 0
         self._publication_workers = publish_workers
         self._publication_limit = publish_limit
+        self._publication_check_on_submit = check_on_submit
         self._publication_enabled = False
         self._publication_failure_path = None
         self._publication_finished = False
@@ -63,7 +67,8 @@ class PipelinedTargetFilterResume(DistributedTargetFilterResume):
         self._publication_tuning_error = None
         super().__init__(control, handover)
         self._task_publisher = BoundedTaskPublisher(
-            workers=publish_workers, max_pending=publish_limit)
+            workers=publish_workers, max_pending=publish_limit,
+            check_on_submit=self._publication_check_on_submit)
         self._publication_enabled = True
         self.save()
 
@@ -103,6 +108,7 @@ class PipelinedTargetFilterResume(DistributedTargetFilterResume):
     def _publication_snapshot(self):
         return {
             'workers': self._publication_workers,
+            'main_thread_target_checks': getattr(self, '_publication_check_on_submit', True),
             'limit': self._publication_limit,
             'pending': len(self._publication_tasks),
             'published_since_handover': self._publication_successes,
@@ -154,7 +160,8 @@ class PipelinedTargetFilterResume(DistributedTargetFilterResume):
             return
         if (workers, limit) != (self._publication_workers, self._publication_limit):
             self._collect_publications(finish=True)
-            self._task_publisher = BoundedTaskPublisher(workers=workers, max_pending=limit)
+            self._task_publisher = BoundedTaskPublisher(workers=workers, max_pending=limit,
+                check_on_submit=getattr(self, '_publication_check_on_submit', True))
             self._publication_finished = False
             self._publication_workers, self._publication_limit = workers, limit
         self._publication_tuning_id = operation

@@ -1,10 +1,11 @@
 import concurrent.futures
 import pathlib
+import threading
+import time
 import unittest
 from unittest import mock
 
 import migration_broker_sharded as candidate
-import migration_broker_parallel as parallel
 from migration_io import read_json, write_json
 from migration_run import queued_count
 from test_broker_parallel import Fixture, STAGE
@@ -38,6 +39,191 @@ class BrokerShardedTests(unittest.TestCase):
             self.assertEqual(running.parent, fixture.root / 'running' / str(task_id % 64))
             self.assertEqual(read_json(running), claim['task'])
         self.assertEqual(queued_count(fixture.root), (0, 128))
+
+    def test_consecutive_claim_windows_cover_all_64_shards_without_rescanning(self):
+        fixture = self.fixture(tasks=128)
+        upgraded = fixture.open(candidate.Broker)
+        original = pathlib.Path.iterdir
+        scans = []
+
+        def counted(path):
+            if path.parent.name == 'pending':
+                scans.append(path)
+            return original(path)
+
+        with mock.patch.object(pathlib.Path, 'iterdir', counted):
+            claims = [upgraded.claim(STAGE, 'node-a-' + str(i)) for i in range(128)]
+        ids = [claim['task']['id'] for claim in claims]
+        self.assertEqual(set(ids), set(range(128)))
+        for start in range(65):
+            self.assertEqual({task_id % 64 for task_id in ids[start:start + 64]}, set(range(64)))
+        self.assertEqual(len(scans), 64)
+
+    def test_pending_refill_reads_eight_shards_concurrently_without_sqlite_lock(self):
+        fixture = self.fixture(tasks=128)
+        upgraded = fixture.open(candidate.Broker)
+        original = pathlib.Path.iterdir
+        lock = threading.Lock()
+        entered, release = threading.Event(), threading.Event()
+        active = peak = 0
+        readers = set()
+
+        def blocked(path):
+            nonlocal active, peak
+            if path.parent.name != 'pending':
+                return original(path)
+            with lock:
+                active += 1
+                peak = max(peak, active)
+                readers.add(threading.get_ident())
+                if active == 8:
+                    entered.set()
+            try:
+                if not release.wait(5):
+                    raise RuntimeError('shard reader gate was not released')
+                return list(original(path))
+            finally:
+                with lock:
+                    active -= 1
+
+        with mock.patch.object(pathlib.Path, 'iterdir', blocked), \
+                concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            pending = pool.submit(upgraded._candidate, STAGE)
+            try:
+                self.assertTrue(entered.wait(3), 'eight shard readers did not overlap')
+                self.assertTrue(upgraded.lock.acquire(blocking=False), 'scan held SQLite mutex')
+                upgraded.lock.release()
+                self.assertEqual(peak, 8)
+            finally:
+                release.set()
+            first = pending.result(timeout=3)
+        paths = [first] + [upgraded._candidate(STAGE) for _ in range(127)]
+        self.assertEqual(len(set(paths)), 128)
+        self.assertEqual({int(path.stem) for path in paths}, set(range(128)))
+        for start in range(65):
+            self.assertEqual({int(path.stem) % 64 for path in paths[start:start + 64]}, set(range(64)))
+        self.assertGreater(len(readers), 1)
+        self.assertLessEqual(len(readers), 8)
+
+    def test_pending_parallel_readers_obey_smaller_shared_fs_slot_budget(self):
+        fixture = self.fixture(tasks=64)
+        upgraded = fixture.open(candidate.Broker)
+        upgraded.fs_slots = threading.BoundedSemaphore(2)
+        original = pathlib.Path.iterdir
+        lock = threading.Lock()
+        entered, release = threading.Event(), threading.Event()
+        active = peak = 0
+
+        def blocked(path):
+            nonlocal active, peak
+            if path.parent.name != 'pending':
+                return original(path)
+            with lock:
+                active += 1
+                peak = max(peak, active)
+                if active == 2:
+                    entered.set()
+            try:
+                if not release.wait(5):
+                    raise RuntimeError('shared metadata slot gate was not released')
+                return list(original(path))
+            finally:
+                with lock:
+                    active -= 1
+
+        with mock.patch.object(pathlib.Path, 'iterdir', blocked), \
+                concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            pending = pool.submit(upgraded._candidate, STAGE)
+            try:
+                self.assertTrue(entered.wait(3))
+                self.assertEqual(peak, 2)
+                self.assertFalse(upgraded.fs_slots.acquire(blocking=False),
+                                 'directory readers bypassed the shared fs_slots budget')
+            finally:
+                release.set()
+            self.assertIsNotNone(pending.result(timeout=3))
+        self.assertEqual(peak, 2)
+        self.assertEqual(active, 0)
+        self.assertTrue(upgraded.fs_slots.acquire(blocking=False))
+        self.assertTrue(upgraded.fs_slots.acquire(blocking=False))
+        self.assertFalse(upgraded.fs_slots.acquire(blocking=False))
+        upgraded.fs_slots.release()
+        upgraded.fs_slots.release()
+
+    def test_pending_enumeration_error_is_not_empty_or_partial_cache(self):
+        fixture = self.fixture(tasks=128)
+        upgraded = fixture.open(candidate.Broker)
+        original = pathlib.Path.iterdir
+
+        def fail(path):
+            if path.parent.name == 'pending' and path.name == '3':
+                raise PermissionError('synthetic pending shard failure')
+            return original(path)
+
+        with mock.patch.object(pathlib.Path, 'iterdir', fail):
+            with self.assertRaisesRegex(PermissionError, 'synthetic pending shard failure'):
+                upgraded._candidate(STAGE)
+        self.assertFalse(upgraded.ready[STAGE])
+        self.assertNotIn(STAGE, upgraded.next_scan)
+        with upgraded.lock:
+            self.assertEqual(upgraded.db.execute('SELECT COUNT(*) FROM claims').fetchone()[0], 0)
+        paths = [upgraded._candidate(STAGE) for _ in range(128)]
+        self.assertEqual(len(set(paths)), 128)
+        self.assertEqual({int(path.stem) for path in paths}, set(range(128)))
+
+    def test_64_simultaneous_publishers_use_64_distinct_directory_locks(self):
+        fixture = self.fixture(tasks=128)
+        upgraded = fixture.open(candidate.Broker)
+        upgraded.state_cache_until = time.monotonic() + 60
+        entered, release = threading.Event(), threading.Event()
+        lock, parents = threading.Lock(), []
+        original = upgraded.publish_json
+
+        def gated(path, value):
+            with lock:
+                parents.append(path.parent)
+                if len(parents) == 64:
+                    entered.set()
+            if not release.wait(5):
+                raise RuntimeError('publisher gate was not released')
+            return original(path, value)
+
+        with mock.patch.object(upgraded, 'publish_json', gated), concurrent.futures.ThreadPoolExecutor(max_workers=64) as pool:
+            futures = [pool.submit(upgraded.claim, STAGE, 'node-a-' + str(i)) for i in range(64)]
+            try:
+                self.assertTrue(entered.wait(4), '64 publishers did not enter independent FS slots')
+                self.assertEqual({parent.name for parent in parents}, {str(i) for i in range(64)})
+                self.assertEqual(len(set(parents)), 64)
+            finally:
+                release.set()
+            claims = [future.result(timeout=3) for future in futures]
+        self.assertEqual(len({claim['task']['id'] for claim in claims}), 64)
+        self.assertEqual(len({claim['lease'] for claim in claims}), 64)
+
+    def test_uneven_empty_shards_and_stale_candidates_are_skipped_without_duplicate_leases(self):
+        fixture = self.fixture(tasks=0)
+        ids = [0, 64, 128, 192, 1, 65, 130, 191]
+        for task_id in ids:
+            task = {'id': task_id, 'phase': 3, 'round': 1, 'op': 'copy',
+                    'entries': [{'rel': 'data-' + str(task_id), 'kind': 'file', 'size': 1}]}
+            fixture.tasks[task_id] = task
+            write_json(fixture.pending(task_id), task)
+        upgraded = fixture.open(candidate.Broker)
+        first = upgraded.claim(STAGE, 'node-a-0')
+        self.assertEqual(first['task']['id'], 0)
+        # Simulate an old NFS pending entry plus a candidate disappearing after
+        # ready-cache enumeration; SQLite remains the assignment authority.
+        write_json(fixture.pending(0), fixture.tasks[0])
+        fixture.pending(65).unlink()
+        with upgraded.ready_lock:
+            upgraded.ready[STAGE].appendleft(fixture.pending(0))
+        claims = [upgraded.claim(STAGE, 'node-a-' + str(i)) for i in range(1, 7)]
+        selected = [first['task']['id']] + [claim['task']['id'] for claim in claims]
+        self.assertEqual(set(selected), set(ids) - {65})
+        self.assertEqual(len(selected), len(set(selected)))
+        self.assertEqual(selected[:4], [0, 1, 130, 191])
+        replay = upgraded.claim(STAGE, 'node-a-0')
+        self.assertEqual(replay, first)
 
     def test_legacy_lease_and_completion_keep_their_persisted_flat_paths(self):
         fixture = self.fixture(tasks=3, old=True)
@@ -86,14 +272,14 @@ class BrokerShardedTests(unittest.TestCase):
         fixture = self.fixture(tasks=1)
         upgraded = fixture.open(candidate.Broker)
         fixture.broker = upgraded
-        original = parallel.atomic_json
+        original = candidate.write_json
 
-        def fail(path, value):
+        def fail(path, value, **kwargs):
             if pathlib.Path(path).parent.parent.name == 'running':
                 raise OSError('synthetic shard publication failure')
-            return original(path, value)
+            return original(path, value, **kwargs)
 
-        with mock.patch.object(parallel, 'atomic_json', fail):
+        with mock.patch.object(candidate, 'write_json', fail):
             with self.assertRaisesRegex(OSError, 'synthetic'):
                 upgraded.claim(STAGE, 'node-a-0')
         before = fixture.row(0)
@@ -118,9 +304,63 @@ class BrokerShardedTests(unittest.TestCase):
         with mock.patch.object(pathlib.Path, 'mkdir', count):
             upgraded.claim(STAGE, 'node-a-0')
             upgraded.claim(STAGE, 'node-b-0')
-        # write_json still ensures the selected marker parent exists. Each
-        # claim touches one shard, rather than preparing all 64 again.
-        self.assertEqual(len(shard_creations), 2)
+        self.assertEqual(shard_creations, [])
+
+    def test_hot_running_and_done_publish_without_parent_mkdir(self):
+        fixture = self.fixture(tasks=1)
+        upgraded = fixture.open(candidate.Broker)
+        original = pathlib.Path.mkdir
+        touched = []
+
+        def count(path, *args, **kwargs):
+            touched.append(path)
+            return original(path, *args, **kwargs)
+
+        with mock.patch.object(pathlib.Path, 'mkdir', count):
+            claim = upgraded.claim(STAGE, 'node-a-0')
+            self.assertTrue(upgraded.done(fixture.completion(claim))['ok'])
+        self.assertEqual(touched, [])
+
+    def test_missing_prepared_parent_fails_without_losing_lease_or_done_retry(self):
+        fixture = self.fixture(tasks=1)
+        upgraded = fixture.open(candidate.Broker)
+        fixture.broker = upgraded
+        running_parent = fixture.root / 'running' / '0'
+        running_parent.rmdir()
+        with self.assertRaises(FileNotFoundError):
+            upgraded.claim(STAGE, 'node-a-0')
+        before = fixture.row(0)
+        self.assertEqual(before[2], 'leased')
+        self.assertTrue(fixture.pending(0).exists())
+        running_parent.mkdir()
+        replay = upgraded.claim(STAGE, 'node-a-0')
+        self.assertEqual(replay['lease'], before[1])
+        done_parent = fixture.root / 'done' / '0'
+        done_parent.rmdir()
+        with self.assertRaises(FileNotFoundError):
+            upgraded.done(fixture.completion(replay))
+        self.assertEqual(fixture.row(0)[2], 'leased')
+        self.assertTrue(pathlib.Path(before[3]).exists())
+        done_parent.mkdir()
+        self.assertTrue(upgraded.done(fixture.completion(replay))['ok'])
+        self.assertEqual(fixture.row(0)[2], 'done')
+
+    def test_retried_receipt_keeps_immutable_canonical_and_original_copy_proof(self):
+        fixture = self.fixture(tasks=1)
+        upgraded = fixture.open(candidate.Broker)
+        fixture.broker = upgraded
+        claim = upgraded.claim(STAGE, 'node-a-0')
+        target = fixture.done_path(0)
+        write_json(target, fixture.completion(claim)['receipt'])
+        original_inode = target.stat().st_ino
+        original_bytes = target.read_bytes()
+        self.assertTrue(upgraded.done(fixture.completion(claim, status='skipped'))['ok'])
+        self.assertEqual(target.stat().st_ino, original_inode)
+        self.assertEqual(target.read_bytes(), original_bytes)
+        result = read_json(target)['results'][0]
+        self.assertEqual(result['status'], 'copied')
+        self.assertEqual(result['bytes'], 17)
+        self.assertTrue(result['replay_reused_copy'])
 
 
 class ShardedQueueCountTests(unittest.TestCase):

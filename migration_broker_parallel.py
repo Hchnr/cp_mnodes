@@ -65,6 +65,10 @@ class Broker(OriginalBroker):
         return self.control / 'stages' / stage / 'running' / (
             'broker--' + owner + '--' + str(task_id) + '.json')
 
+    def publish_json(self, path, value):
+        """Override publication policy without changing lease/completion order."""
+        return atomic_json(path, value)
+
     def _candidate(self, stage):
         # This mutex only serializes ready-cache enumeration. In particular,
         # slow getdents/stat calls never hold the SQLite or completion locks.
@@ -83,7 +87,7 @@ class Broker(OriginalBroker):
     def _publish_claim(self, running, task, pending, recover=False):
         with self.fs_slots:
             if not recover or not running.exists():
-                atomic_json(running, task)
+                self.publish_json(running, task)
             try:
                 pending.unlink()
             except FileNotFoundError:
@@ -205,7 +209,7 @@ class Broker(OriginalBroker):
                         result['status'] = 'copied'
                         result['bytes'] = previous.get('bytes', 0)
                         result['replay_reused_copy'] = True
-                atomic_json(target, receipt)
+                self.publish_json(target, receipt)
                 try:
                     pathlib.Path(row[2]).unlink()
                 except FileNotFoundError:
@@ -224,8 +228,8 @@ class Broker(OriginalBroker):
         # in-memory barrier under that lock before acknowledging the request.
         with self.control_lock:
             with self.fs_slots:
-                atomic_json(self.control / 'drain-hosts.json',
-                            {'draining_hosts': sorted(hosts), 'updated': time.time()})
+                self.publish_json(self.control / 'drain-hosts.json',
+                                  {'draining_hosts': sorted(hosts), 'updated': time.time()})
             with self.lock:
                 self.draining_hosts = hosts
             return {'ok': True, 'draining_hosts': sorted(hosts)}

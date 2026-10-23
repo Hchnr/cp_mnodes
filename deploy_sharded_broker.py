@@ -88,17 +88,45 @@ def database_snapshot(path):
             'schema': schema, 'journal_mode': journal}
 
 
-def preflight(control):
+def expected_broker(control, expected_identity=None):
+    """Bind a complete broker identity from a frozen file in a run bundle."""
     control = Path(control).resolve()
-    cfg = read_json(control / 'config.json')
-    expected = {'pid': OLD_PID, 'starttime_ticks': OLD_START,
+    if expected_identity is None:
+        return {'control': str(control), 'pid': OLD_PID, 'starttime_ticks': OLD_START,
                 'argv': ['/usr/bin/python3', '-u', str(control / 'migration_broker_parallel.py'),
                          '--control', str(control), '--port', str(PORT)]}
-    actual = identity(OLD_PID)
+    path = Path(expected_identity).resolve()
+    if (path.parent.parent != control or not path.is_file()
+            or (path.parent / '.snapshots' / path.name).exists()):
+        raise ValueError('expected identity must be a frozen JSON file inside a run bundle')
+    expected = read_json(path)
+    if (expected.get('control') != str(control) or type(expected.get('pid')) is not int
+            or expected['pid'] <= 1 or not isinstance(expected.get('starttime_ticks'), str)
+            or not expected['starttime_ticks'].isdigit()
+            or not isinstance(expected.get('argv'), list) or len(expected['argv']) != 7
+            or any(not isinstance(part, str) for part in expected['argv'])):
+        raise ValueError('expected broker requires control, PID, starttime and full argv')
+    argv = expected['argv']
+    entry = Path(argv[2]).resolve()
+    if (not entry.is_relative_to(control) or not entry.is_file()
+            or entry.name not in ('migration_broker_parallel.py', 'migration_broker_sharded.py')
+            or argv != ['/usr/bin/python3', '-u', str(entry), '--control', str(control),
+                        '--port', str(PORT)]):
+        raise ValueError('expected argv must name this run broker entry, control and port')
+    return {**expected, 'identity_path': str(path),
+            'identity_sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
+
+
+def preflight(control, expected_identity=None):
+    control = Path(control).resolve()
+    cfg = read_json(control / 'config.json')
+    expected = expected_broker(control, expected_identity)
+    old_pid = expected['pid']
+    actual = identity(old_pid)
     if not same_process(actual, expected):
         raise RuntimeError('old broker PID/starttime/full argv do not match')
     role = read_json(control / 'broker.json')
-    if role.get('pid') != OLD_PID or role.get('host') != socket.gethostname() or role.get('port') != PORT:
+    if role.get('pid') != old_pid or role.get('host') != socket.gethostname() or role.get('port') != PORT:
         raise RuntimeError('broker role does not match this host and port')
     if (control / 'STOP').exists():
         raise RuntimeError('STOP is present')
@@ -109,12 +137,13 @@ def preflight(control):
     for line in Path('/proc/locks').read_text().splitlines():
         fields = line.split()
         if (len(fields) >= 6 and fields[1] == 'FLOCK'
-                and fields[4] == str(OLD_PID) and fields[5].endswith(':' + str(lock.st_ino))):
+                and fields[4] == str(old_pid) and fields[5].endswith(':' + str(lock.st_ino))):
             held.append(line)
     if not held:
         raise RuntimeError('bound old broker does not hold its expected flock')
     return cfg, {'control': str(control), 'host': socket.gethostname(), 'captured': now(),
-                 'old_identity': actual, 'old_nice': os.getpriority(os.PRIO_PROCESS, OLD_PID),
+                 'old_identity': actual, 'expected_identity': expected,
+                 'old_nice': os.getpriority(os.PRIO_PROCESS, old_pid),
                  'workers': workers(control), 'database': database_snapshot(dbpath),
                  'lock_path': str(lockpath), 'lock_inode': lock.st_ino,
                  'drain': read_json(control / 'drain-hosts.json')}
@@ -129,9 +158,10 @@ def staged_source(bundle, expected_manifest):
         path = (bundle / name).resolve()
         if path.parent != bundle or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
             raise RuntimeError('staged source file binding changed')
-    entry = bundle / 'migration_broker_parallel.py'
-    if entry.name not in manifest or 'migration_broker.py' not in manifest:
-        raise RuntimeError('staged bundle lacks the complete broker entry and base module')
+    entry = bundle / 'migration_broker_sharded.py'
+    required = ('migration_broker_sharded.py', 'migration_broker_parallel.py', 'migration_broker.py')
+    if any(name not in manifest for name in required):
+        raise RuntimeError('staged bundle lacks the sharded broker entry and inherited modules')
     return entry
 
 
@@ -153,12 +183,16 @@ def validate_preserved_database(before, after):
         reader.close()
 
 
-def handover(control, bundle, manifest_sha, exit_timeout=60):
+def handover(control, bundle, manifest_sha, exit_timeout=60, expected_identity=None):
     control, bundle = Path(control).resolve(), Path(bundle).resolve()
     if bundle.parent != control:
         raise ValueError('new broker bundle must be directly within the control directory')
     entry = staged_source(bundle, manifest_sha)
-    cfg, before = preflight(control)
+    if expected_identity is not None and Path(expected_identity).resolve().parent != bundle:
+        raise ValueError('expected identity must be frozen inside the new broker bundle')
+    cfg, before = preflight(control, expected_identity)
+    old_pid = before['old_identity']['pid']
+    old_start = before['old_identity']['starttime_ticks']
     soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
     if hard != resource.RLIM_INFINITY and hard < 65536:
         raise RuntimeError('broker NOFILE hard limit is too low')
@@ -178,16 +212,18 @@ def handover(control, bundle, manifest_sha, exit_timeout=60):
 
     try:
         staged_source(bundle, manifest_sha)
-        if (control / 'STOP').exists() or not same_process(identity(OLD_PID), before['old_identity']):
+        if expected_broker(control, expected_identity) != before['expected_identity']:
+            raise RuntimeError('frozen expected broker identity changed before scoped signal')
+        if (control / 'STOP').exists() or not same_process(identity(old_pid), before['old_identity']):
             raise RuntimeError('old broker identity or STOP changed before scoped signal')
-        os.kill(OLD_PID, signal.SIGTERM)
+        os.kill(old_pid, signal.SIGTERM)
         save(state='old_broker_signalled')
         deadline = time.monotonic() + exit_timeout
         with open(before['lock_path'], 'a') as lock:
             while True:
-                actual = identity(OLD_PID)
+                actual = identity(old_pid)
                 exited = (actual is None or actual['state'] == 'Z'
-                          or actual['starttime_ticks'] != OLD_START)
+                          or actual['starttime_ticks'] != old_start)
                 if exited:
                     try:
                         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -205,7 +241,7 @@ def handover(control, bundle, manifest_sha, exit_timeout=60):
         staged_source(bundle, manifest_sha)
         argv = ['/usr/bin/python3', '-u', str(entry), '--control', str(control), '--port', str(PORT)]
         with open(bundle / 'broker.log', 'xb') as log:
-            child = subprocess.Popen(['nice', '-n', str(before['old_nice']), *argv],
+            child = subprocess.Popen(['nice', '-n', str(before['old_nice']), 'ionice', '-c', '3', *argv],
                                      stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
                                      start_new_session=True, close_fds=True)
         save(state='new_broker_launched', new_pid=child.pid, new_argv=argv)
@@ -259,9 +295,10 @@ if __name__ == '__main__':
     parser.add_argument('--control', required=True)
     parser.add_argument('--bundle')
     parser.add_argument('--manifest-sha256')
+    parser.add_argument('--expected-identity', help='frozen JSON with control, pid, starttime_ticks and full argv')
     args = parser.parse_args()
     if args.mode == 'preflight':
-        _, value = preflight(args.control)
+        _, value = preflight(args.control, args.expected_identity)
         # Lease credentials are preserved in private handover evidence but
         # never printed by read-only operator preflight.
         value['database'].pop('leased')
@@ -269,4 +306,5 @@ if __name__ == '__main__':
     else:
         if not args.bundle or not args.manifest_sha256:
             parser.error('handover requires --bundle and --manifest-sha256')
-        print(json.dumps(handover(args.control, args.bundle, args.manifest_sha256)), flush=True)
+        print(json.dumps(handover(args.control, args.bundle, args.manifest_sha256,
+                                 expected_identity=args.expected_identity)), flush=True)

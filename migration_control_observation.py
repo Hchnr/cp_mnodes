@@ -96,7 +96,19 @@ def observe_stage_queues(control):
                                     if running is not None:
                                         value = census.queue_files(running, path / 'running')
                                         record['running'] = value['json_files']
-                                        record['other_entries'].extend('running/' + name for name in value['other_entries'])
+                                        expected = {str(i) for i in range(64)}
+                                        for name in value['other_entries']:
+                                            if name not in expected:
+                                                record['other_entries'].append('running/' + name)
+                                                continue
+                                            shard_path = path / 'running' / name
+                                            with census.directory(name, running, shard_path) as shard_fd:
+                                                if shard_fd is not None:
+                                                    shard = census.queue_files(shard_fd, shard_path)
+                                                    record['running'] += shard['json_files']
+                                                    record['other_entries'].extend(
+                                                        'running/%s/%s' % (name, entry)
+                                                        for entry in shard['other_entries'])
                         record['errors'] = list(census.errors[begin_errors:])
                         if record['errors']:
                             record['pending'] = record['running'] = None

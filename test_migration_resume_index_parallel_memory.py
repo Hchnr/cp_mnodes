@@ -23,7 +23,7 @@ from test_migration_resume_index import identity, result, receipt
 
 class ParallelResumeTests(unittest.TestCase):
     def setUp(self):
-        temporary = tempfile.TemporaryDirectory(dir=WORK, prefix='parallel-resume-fixture-')
+        temporary = tempfile.TemporaryDirectory(dir='/tmp', prefix='parallel-resume-fixture-')
         self.addCleanup(temporary.cleanup)
         self.base = Path(temporary.name)
         self.control = self.base / 'current'

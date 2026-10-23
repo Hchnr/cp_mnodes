@@ -12,6 +12,7 @@ training processes, other lanes, or workers carrying payload file descriptors.
 import argparse
 import datetime
 import fcntl
+import hashlib
 import json
 import math
 import os
@@ -34,6 +35,82 @@ from migration_io import read_json, write_json
 BASE = Path(__file__).resolve().parent
 TERMINAL = {'complete', 'complete_with_changes', 'failed', 'stopped'}
 COUNTERS = ('bytes', 'streamed_bytes', 'verified_bytes', 'verified_files', 'completed_batches', 'broker_retries')
+ENGINE_FILES = ('migration_run.py', 'migration_worker.py', 'migration_scan.py',
+                'migration_worker128_run.py', 'migration_io.py', 'migration_nodes.py')
+
+
+def validate_engine_transition(previous, proposed, manifest_path, control):
+    """Permit one explicitly hash-bound worker change, never a generic upgrade.
+
+    Without a manifest this retains the original six-file equality gate. The
+    optional static manifest must be inside the new immutable bundle and bind
+    its exact control, bundle, scope and the complete old/new worker sources.
+    All five other engine files must still match byte for byte.
+    """
+    previous, proposed, control = (Path(value).resolve() for value in
+                                   (previous, proposed, control))
+    proof = None
+    if manifest_path is not None:
+        manifest = Path(manifest_path).resolve()
+        if (not previous.is_relative_to(control) or
+                not proposed.is_relative_to(control) or proposed == control or
+                not manifest.is_relative_to(proposed) or manifest == proposed):
+            raise RuntimeError('engine manifest must remain inside the proposed control bundle')
+        payload = manifest.read_bytes()
+        if len(payload) > 65536:
+            raise RuntimeError('engine transition manifest is oversized')
+        data = json.loads(payload)
+        if (not isinstance(data, dict) or data.get('scope') not in
+                ('directory-open-first-v1', 'destination-opath-checkpoint-v1') or
+                data.get('control') != str(control) or data.get('bundle') != str(proposed)):
+            raise RuntimeError('engine transition manifest scope/control/bundle differs')
+        for key in ('old_sha256', 'new_sha256'):
+            value = data.get(key)
+            if (not isinstance(value, str) or len(value) != 64 or
+                    any(character not in '0123456789abcdef' for character in value)):
+                raise RuntimeError('engine transition requires full source SHA256: ' + key)
+        path_only = data['scope'] == 'destination-opath-checkpoint-v1'
+        if not path_only and data['old_sha256'] == data['new_sha256']:
+            raise RuntimeError('engine transition must bind different old/new worker sources')
+        if path_only and data['old_sha256'] != data['new_sha256']:
+            raise RuntimeError('O_PATH wrapper transition must keep the complete data engine unchanged')
+        proof = {'scope': data['scope'], 'control': str(control), 'bundle': str(proposed),
+                 'manifest_path': str(manifest),
+                 'manifest_sha256': hashlib.sha256(payload).hexdigest(),
+                 'old_sha256': data['old_sha256'], 'new_sha256': data['new_sha256'],
+                 'engine_sha256': {}}
+        if path_only:
+            proof['launcher_sha256'] = {}
+            names = ('migration_cached_worker.py', 'migration_linux_open.py',
+                     'worker-directory-policy.json')
+            if (not isinstance(data.get('launcher_sha256'), dict) or
+                    set(data['launcher_sha256']) != set(names)):
+                raise RuntimeError('O_PATH launcher digest manifest is incomplete')
+            for name in names:
+                expected = data['launcher_sha256'][name]
+                source = proposed / name
+                if (source.is_symlink() or source.resolve().parent != proposed
+                        or expected != hashlib.sha256(source.read_bytes()).hexdigest()):
+                    raise RuntimeError('O_PATH launcher source digest differs: ' + name)
+                proof['launcher_sha256'][name] = expected
+            if json.loads((proposed / 'worker-directory-policy.json').read_bytes()) != {
+                    'scope': 'destination-opath-checkpoint-v1'}:
+                raise RuntimeError('O_PATH launcher policy differs')
+    for name in ENGINE_FILES:
+        old_path, new_path = previous / name, proposed / name
+        if proof is not None and (old_path.resolve().parent != previous or
+                                  new_path.resolve().parent != proposed):
+            raise RuntimeError('engine source escapes its immutable bundle: ' + name)
+        old_hash = hashlib.sha256(old_path.read_bytes()).hexdigest()
+        new_hash = hashlib.sha256(new_path.read_bytes()).hexdigest()
+        if proof is not None:
+            proof['engine_sha256'][name] = {'old': old_hash, 'new': new_hash}
+        if name == 'migration_worker.py' and proof is not None:
+            if (old_hash, new_hash) != (proof['old_sha256'], proof['new_sha256']):
+                raise RuntimeError('worker transition source SHA256 differs')
+        elif old_hash != new_hash:
+            raise RuntimeError('replacement data engine differs: ' + name)
+    return proof
 
 
 def lane_owners(host, lane):
@@ -316,24 +393,41 @@ def remote(a):
     if not idle_sample(n, record['expected'], record['barrier']) or payload_fds(n['pid'], (cfg['source'], cfg['destination'])):
         raise RuntimeError('lane gained work or has payload descriptors; never interrupt')
     wrapper = next(value for value in current['argv'] if Path(value).name == 'migration_cached_worker.py')
+    engine_manifest = getattr(a, 'engine_manifest', None)
+    engine_transition = None
+    previous = proposed = None
+    if engine_manifest and not a.wrapper:
+        raise RuntimeError('engine transition manifest requires an explicit replacement wrapper')
     if a.wrapper:
-        from hashlib import sha256
         previous = Path(wrapper).parent
         proposed = Path(a.wrapper).resolve().parent
-        for name in ('migration_run.py', 'migration_worker.py', 'migration_scan.py',
-                     'migration_worker128_run.py', 'migration_io.py', 'migration_nodes.py'):
-            if sha256((previous / name).read_bytes()).digest() != sha256((proposed / name).read_bytes()).digest():
-                raise RuntimeError('replacement data engine differs: ' + name)
+        engine_transition = validate_engine_transition(previous, proposed, engine_manifest, control)
         wrapper = a.wrapper
     if not Path(wrapper).is_file() or os.path.commonpath((str(control), str(Path(wrapper).resolve()))) != str(control):
         raise RuntimeError('immutable copy wrapper must remain within this control')
+    guarded_startup = bool(engine_transition and engine_transition['scope'] ==
+                           'destination-opath-checkpoint-v1')
+    if guarded_startup:
+        from migration_cached_worker import StartupProgressGuard
+        # This helper and the new wrapper live in the same immutable bundle.
+        # A bad checkpoint must fail before the first signal, and the wrapper
+        # rechecks the actual node read under the worker's singleton flock.
+        StartupProgressGuard(control, lane, record_path, a.operation,
+                             read_json, proposed).preflight()
     soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
     if hard != resource.RLIM_INFINITY and hard < 65536:
         raise RuntimeError('NOFILE hard limit cannot support the required65536')
     # The maintained host drain forbids new claims after the master's exact
     # per-owner lease-zero proof; the other lane may keep existing large I/O.
     record.update(status='replacing', helper=proc_identity(os.getpid()))
+    if engine_transition is not None:
+        record['engine_transition'] = engine_transition
     save(record)
+    if a.wrapper:
+        # Check again after the checkpoint's shared-filesystem publication and
+        # immediately before the first signal. Changed inputs never stop a lane.
+        if validate_engine_transition(previous, proposed, engine_manifest, control) != engine_transition:
+            raise RuntimeError('engine transition manifest changed before signal')
     os.kill(current['pid'], signal.SIGTERM)
     record['stop_sent'] = True
     save(record)
@@ -367,6 +461,9 @@ def remote(a):
         resource.setrlimit(resource.RLIMIT_NOFILE, (wanted, hard))
     command = [sys.executable, '-u', wrapper, lane, '--control', str(control), '--threads', '64',
                '--cache-max-age', str(float(a.max_age))]
+    if guarded_startup:
+        command.extend(['--progress-checkpoint', str(record_path),
+                        '--progress-operation', a.operation])
     if lane == 'supplement':
         command.extend(['--nice', '0'])
     command = ['nice', '-n', '15'] + command
@@ -482,12 +579,15 @@ def main():
                     help='timeout for each broker control request, without retries (default: 10)')
     ap.add_argument('--remote-script')
     ap.add_argument('--wrapper')
+    ap.add_argument('--engine-manifest', help='explicit hash-bound directory-open-first worker transition')
     ap.add_argument('--action', choices=('hold', 'inspect', 'observe', 'drain', 'gate', 'replace', 'release'))
     ap.add_argument('--control')
     ap.add_argument('--host')
     ap.add_argument('--identity-json')
     ap.add_argument('--operation')
     a = ap.parse_args()
+    if a.engine_manifest and not a.wrapper:
+        ap.error('--engine-manifest requires an explicit --wrapper')
     if a.max_age != 30 or not 0 < a.gate_timeout <= 30:
         ap.error('this canary fixes max-age=30 and idle gate at most30s')
     if not math.isfinite(a.visibility_timeout) or a.visibility_timeout < 0:
@@ -520,6 +620,8 @@ def main():
             args.extend(['--identity-json', json.dumps(identity)])
         if a.wrapper:
             args.extend(['--wrapper', a.wrapper])
+        if a.engine_manifest:
+            args.extend(['--engine-manifest', a.engine_manifest])
         return ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=15', '-o', 'ServerAliveInterval=15',
                 '-p', '2222', destination, shlex.join(args)]
     def call(node, action, lane=None, identity=None):

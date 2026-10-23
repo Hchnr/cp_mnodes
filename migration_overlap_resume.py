@@ -308,7 +308,8 @@ def seed_child(control, candidate, result_path):
     try:
         from migration_resume_index_parallel_memory import build_resume_index
         summary = build_resume_index(cfg['resume_from'], candidate, progress_callback=report,
-                                     read_workers=int(cfg.get('resume_read_workers', 64)))
+                                     read_workers=int(cfg.get('resume_read_workers', 64)),
+                                     strict_enumeration=cfg.get('resume_strict_enumeration', False))
         live = pathlib.Path('/tmp') / (cfg['run_id'] + '-index.sqlite')
         merged = merge_history(candidate, live,
                                lambda counts: report(dict(summary, status='importing', **counts)))

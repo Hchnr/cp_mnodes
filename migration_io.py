@@ -124,15 +124,18 @@ def _publish_unique(path, payload):
         raise
 
 
-def write_json(path, data):
+def write_json(path, data, *, ensure_parent=True):
     """Publish JSON and return its actual immutable path.
 
     Known mutable paths use snapshots from their first write. Rewriting any
     other existing path upgrades it to snapshots instead of replacing it.
     Queue/config files first published at absent paths keep their usual paths.
+    A caller that already prepared a trusted parent may skip its redundant
+    mkdir; publication then fails normally if that parent is missing.
     """
     path = pathlib.Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    if ensure_parent:
+        path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(data, ensure_ascii=True) + '\n'
     directory = _snapshot_dir(path)
     if not _is_mutable(path):

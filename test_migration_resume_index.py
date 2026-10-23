@@ -2,6 +2,7 @@
 
 import json
 import itertools
+from contextlib import closing
 import os
 from pathlib import Path
 import sqlite3
@@ -46,7 +47,9 @@ class ResumeIndexTests(unittest.TestCase):
         self.db = self.base / 'new.sqlite'
 
     def rows(self, path=None):
-        with sqlite3.connect(path or self.db) as db:
+        # SQLite's transaction context does not close the connection. On NFS
+        # an open fixture DB can leave a .nfs file and break directory cleanup.
+        with closing(sqlite3.connect(path or self.db)) as db:
             return {rel: {'source': json.loads(src), 'destination': json.loads(dst),
                           'owned': owned, 'sha256': digest}
                     for rel, src, dst, owned, digest in db.execute('SELECT * FROM files')}

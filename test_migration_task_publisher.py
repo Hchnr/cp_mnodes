@@ -5,7 +5,9 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
 
+import migration_task_publisher as publisher_module
 from migration_io import read_json, write_json
 from migration_task_publisher import BoundedTaskPublisher, PublicationError
 
@@ -150,6 +152,44 @@ class TaskPublisherTests(unittest.TestCase):
         target.symlink_to(target.parent / 'missing')
         with self.assertRaises(FileExistsError):
             pool.submit(3, {'id': 3}, target)
+
+    def test_deferred_fresh_check_never_uses_the_main_thread(self):
+        owner = threading.get_ident()
+        original = publisher_module._fresh_target
+        checked = []
+        def check(path):
+            self.assertNotEqual(threading.get_ident(), owner)
+            checked.append(path)
+            return original(path)
+        pool = self.pool(workers=1,max_pending=2,check_on_submit=False)
+        with mock.patch.object(publisher_module,'_fresh_target',side_effect=check):
+            self.assertTrue(pool.submit(1,{'id':1},self.target(1)))
+            self.assertEqual([r.task_id for r in pool.finish()],[1])
+        self.assertEqual(checked,[self.target(1)])
+
+    def test_deferred_checks_preserve_every_collision_guard_and_never_write_existing_path(self):
+        for number,kind in enumerate(('file','snapshot','symlink'),1):
+            with self.subTest(kind=kind):
+                target=self.target(number);target.parent.mkdir(parents=True,exist_ok=True)
+                if kind=='file':target.write_text('{"old":true}')
+                elif kind=='snapshot':(target.parent/'.snapshots'/target.name).mkdir(parents=True)
+                else:target.symlink_to(target.parent/'missing')
+                pool=self.pool(workers=1,max_pending=1,check_on_submit=False)
+                self.assertTrue(pool.submit(number,{'id':number},target))
+                with self.assertRaises(PublicationError) as error:pool.finish()
+                self.assertEqual(error.exception.results,())
+                self.assertIsInstance(error.exception.failures[0].error,FileExistsError)
+                if kind=='file':self.assertEqual(target.read_text(),'{"old":true}')
+                elif kind=='snapshot':self.assertFalse(target.exists())
+                else:self.assertTrue(target.is_symlink())
+
+    def test_deferred_mode_still_rejects_duplicate_ids_and_targets_before_accepting(self):
+        pool=self.pool(workers=1,max_pending=2,check_on_submit=False)
+        self.assertTrue(pool.submit(1,{'id':1},self.target(1)))
+        with self.assertRaisesRegex(ValueError,'reused task ID'):
+            pool.submit(1,{'id':1},self.target(2))
+        with self.assertRaisesRegex(ValueError,'reused target'):
+            pool.submit(2,{'id':2},self.target(1))
 
     def test_failure_is_not_success_and_poison_blocks_more_submissions(self):
         failed = threading.Event()
