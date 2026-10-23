@@ -14,6 +14,12 @@
 
 本仓库只管理源码和文档。任务控制目录、回执、令牌、数据库、运行日志和测试临时目录均不纳入 Git。针对运行中的任务，先使用下方的只读监控命令；不要把 `git clone` 或 `git pull` 当作部署/重启操作。
 
+2026-10-23 的小文件优化包括：已有目录 open-first；Linux `openat2` 严格拒绝全部祖先符号链接的单次父目录打开；可选的小文件预检下放。后者仅在连续真实缺失的目录内启用并定期复查，复制 worker 的已有目标校验、SHA、冲突保护与回执不变。委托候选不等于已证实目标缺失，须与 probe 健康信息中的实际采样分开计量。`deploy_directory_fastpath.py`、`rollout_native_parallel.py` 是需要显式旧 bundle、完整摘要及空闲交接证明的本次运维工具，不是通用启动器；详细边界和端到端采样见设计文档。
+
+后续预检策略更新由 `deploy_probe_policy.py` 单独管理：先冻结十二节点 probe 和二十四个复制进程的完整身份，再逐个替换只读 probe；不重启 producer、broker 或复制 worker。新版本允许将候选上限有界提高到 1 MiB，并在后台每 5 秒读取 `BUNDLE/roles/probe-policy-runtime.json`，后续只调整 `max_file_bytes` 不需重启；目录预算、真实缺失门槛和复查间隔不能热改。通过 `migration_io.write_json` 发布覆盖策略后，必须核对实际 `/health` 的策略、revision、reload_error 及 PID，而非仅凭配置文件写入成功判定生效。静态源码摘要清单不包含运行态覆盖文件。
+
+目标父目录 `O_PATH` 对照由 `deploy_directory_fastpath.py prepare --previous-bundle ... --destination-opath` 显式准备：六个数据引擎文件必须全部保持不变，只替换有摘要绑定的启动器和父目录打开辅助代码。新进程必须持有当前交接操作的空闲检查点，并在单实例锁内实际读取旧进度时验证累计计数；读取失败或回退均拒绝启动，不允许按零初始化。准备 bundle 不会触发更新；须先做单节点单进程对照，使用 `observe_worker_canary.py` 记录每进程吞吐和计数，再考虑推广。
+
 ## 环境与数据边界
 
 - 运行节点使用 Linux，已验证环境为 Python 3.12。核心引擎只依赖 Python 标准库；需要系统提供 SSH、`nice`、`ionice`，以及可用的共享存储挂载。
@@ -132,6 +138,8 @@ python3 /share-mixed/project/.hcr-copy-monitor/progress.py --watch
 第四项的持久计划是 `extension-plan.json`。P4 的扫描、worker、broker、恢复、元数据及验证组件已经在库中，但它们仍不构成一个已经完成生产交接的独立协调器。是否已启动，应读取计划、最新实际状态及进程证据；不能由归档文件的存在推断。原 1–3 阶段引擎不能仅改源路径就直接执行第四项，P4 必须使用独立控制目录、阶段与索引，完成前置验收和幂等交接。没有 `/home` → `/home-mixed` 迁移任务。前三项完成不等于整个任务完成。
 
 ## 历史运维脚本
+
+`deploy_crash_cluster.py` 是 c3559 集群、排除 worker-9 的一次性崩溃恢复入口，不是通用启动器。`prepare` 验证旧心跳已失效，保留旧控制目录并新增 STOP 隔离标记，以新 run_id 导入未完成批次；`start` 必须在新主节点执行，检查明确的主机白名单、挂载和源码摘要，再通过带 PID/启动时间/完整 argv 证据的幂等角色启动器部署服务。它不启动训练 watchdog。`migration_crash_resume.py` 先核对未完成候选，再用独立扫描/预检进程供给缺失目标；历史回执索引后台重建，不依赖旧 `/tmp` 缓存，也不先重放整个大清单。监控区分旧任务已记录累计与本次恢复新增，速度仍只取新运行计数的差值。
 
 `deploy_*.py`、`start_*.py`、`prepare_*.py`、`recover_*.py`、`restart_*.py`、`rollout_*.py`、`repair_*.py`、`migration_*_launch.py`、`benchmark_*.py` 等保留了本次操作过程，可能带有固定控制目录、节点身份、旧入口或一次性交接假设；其中一些在导入时就执行操作。
 

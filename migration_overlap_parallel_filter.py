@@ -127,11 +127,17 @@ class ParallelFilterResume(OverlapResume):
         self.directory_pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         self.pending_adoption = None
         self.assigned = set()
+        self.adopted_task_ids = set()
         self.assigned_tasks = Path(self.handover['assigned_tasks_path']).resolve()
         maximum = -1
         self.prepared_resume = None
         assignment_input = self.assigned_tasks
-        if self.handover.get('prepared_resume'):
+        if self.handover.get('assignment_checkpoint'):
+            from migration_assigned_checkpoint import load_checkpoint
+            self.assigned, maximum, assignment_input, self.adopted_task_ids = load_checkpoint(
+                self.control, self.cfg, self.handover)
+        elif self.handover.get('prepared_resume'):
+            self.adopted_task_ids = None
             from migration_prepared_resume import load_checkpoint
             self.prepared_resume, self.prepared_values = load_checkpoint(self.handover, self.control)
             self.assigned = self.prepared_values['assigned']
@@ -145,6 +151,8 @@ class ParallelFilterResume(OverlapResume):
         for task in _task_records(assignment_input):
             maximum = max(maximum, task['id'])
             self.assigned.update(entry['rel'] for entry in task['entries'])
+            if self.adopted_task_ids is not None:
+                self.adopted_task_ids.add(task['id'])
         self.next_task_id = self.handover['next_task_id']
         if type(self.next_task_id) is not int or self.next_task_id <= maximum:
             raise ValueError('next_task_id must exceed every durable assigned task ID')

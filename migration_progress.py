@@ -225,6 +225,12 @@ def snapshot(control=None, pointer=DEFAULT_POINTER):
     inventory = read_json(root / 'inventory.json', warnings)
     baseline = read_json(root / 'inventory-baseline.json', warnings)
     metrics = read_json(root / 'metrics.json', warnings)
+    recovery_baseline = read_json(root / 'recovery-baseline.json', warnings)
+    if recovery_baseline and (recovery_baseline.get('control') != str(root)
+            or recovery_baseline.get('run_id') != config.get('run_id')
+            or recovery_baseline.get('resume_from') != config.get('resume_from')):
+        warnings.append('恢复累计基线不属于当前运行，拒绝合并计数')
+        recovery_baseline = {'invalid': True}
     extension_plan = read_json(root / 'extension-plan.json', warnings)
     progress = dict(progress)
     phases = {str(k): dict(v) for k, v in progress.get('phases', {}).items()
@@ -445,6 +451,7 @@ def snapshot(control=None, pointer=DEFAULT_POINTER):
             'broker': {k: broker[k] for k in ('pid', 'host', 'started', 'updated', 'state', 'status')
                        if k in broker},
             'resume_index': resume_index,
+            'recovery_baseline': recovery_baseline,
             'cumulative_evidence': cumulative_evidence,
             'seed_progress': seed_progress,
             'new_copied_bytes': (sum(n['bytes'] for n in nodes)
@@ -497,7 +504,7 @@ def copy_work_progress(view):
                     pending[field] = total - done
                 else:
                     skew = True
-    return {'copied_files': copied_files,
+    result = {'copied_files': copied_files,
             'copied_bytes': number(view.get('new_copied_bytes')) if nodes else None,
             'existing_checks': existing_checks,
             'existing_checks_lower_bound': existing_lower_bound,
@@ -505,6 +512,19 @@ def copy_work_progress(view):
             'pending_files': pending['files'], 'pending_bytes': pending['bytes'],
             'pending_estimated': view.get('recovery_warm') is True,
             'snapshot_skew': skew}
+    baseline = view.get('recovery_baseline')
+    if baseline:
+        previous = baseline.get('work', {})
+        for field in ('copied_files', 'copied_bytes'):
+            old, current = number(previous.get(field)), number(result[field])
+            result['cumulative_' + field] = old + (current or 0) if old is not None else None
+        result['historical_baseline_present'] = True
+        old_existing = number(previous.get('existing_checks'))
+        if old_existing is not None:
+            result['existing_checks'] = old_existing + (result['existing_checks'] or 0)
+        else:
+            result['existing_checks_lower_bound'] = result['existing_checks'] is not None
+    return result
 
 
 def sample_epoch(value):
@@ -908,6 +928,11 @@ def render(view, details=False):
          '约 ' + size(work['pending_bytes']) if work['pending_bytes'] is not None else
          ('同步中' if work['snapshot_skew'] else '未知')],
     ]
+    if work.get('historical_baseline_present'):
+        rows[0][0] = '本次恢复新复制'
+        rows.insert(0, ['已记录累计新复制（含旧任务）',
+                       count(work['cumulative_copied_files']) + ' 项',
+                       size(work['cumulative_copied_bytes'])])
     lines.extend('  ' + line for line in aligned_table(['分类', '数量', '逻辑字节'], rows, right_align=(1, 2)))
     lines.append('')
     lines.extend('  ' + line for line in copy_speed_lines(view))

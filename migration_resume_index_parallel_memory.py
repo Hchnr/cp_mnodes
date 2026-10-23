@@ -55,7 +55,7 @@ def _resume_controls(control):
     return controls
 
 
-def _receipt_paths(directory, on_discover=None):
+def _receipt_paths(directory, on_discover=None, strict=False):
     """Collect canonical receipts without following symlinks or snapshots.
 
     Match the reference builder's full-path lexical consumption order. Directory
@@ -75,8 +75,12 @@ def _receipt_paths(directory, on_discover=None):
                     if entry.is_dir(follow_symlinks=False):
                         names.append(entry.name)
                 except OSError:
+                    if strict:
+                        raise
                     continue
-    except OSError:
+    except OSError as exc:
+        if strict and not isinstance(exc, FileNotFoundError):
+            raise
         return []
     paths = []
     for name in sorted(names):
@@ -84,7 +88,9 @@ def _receipt_paths(directory, on_discover=None):
         try:
             if not stat.S_ISDIR(done.lstat().st_mode):
                 continue
-        except OSError:
+        except OSError as exc:
+            if strict and not isinstance(exc, FileNotFoundError):
+                raise
             continue
         pending = [done]
         while pending:
@@ -93,6 +99,8 @@ def _receipt_paths(directory, on_discover=None):
                 with os.scandir(parent) as entries:
                     children = sorted(entries, key=lambda entry: entry.name)
             except OSError:
+                if strict:
+                    raise
                 # os.walk's default onerror behavior is to skip this directory.
                 continue
             directories = []
@@ -110,6 +118,8 @@ def _receipt_paths(directory, on_discover=None):
                     if entry.is_dir(follow_symlinks=False):
                         directories.append(path)
                 except OSError:
+                    if strict:
+                        raise
                     continue
             pending.extend(reversed(directories))
     return sorted(paths)
@@ -155,7 +165,8 @@ def _ordered_reads(paths, pool, max_inflight):
         yield value
 
 
-def build_resume_index(control, db_path, progress_callback=None, progress_interval=5.0, read_workers=64):
+def build_resume_index(control, db_path, progress_callback=None, progress_interval=5.0, read_workers=64,
+                       strict_enumeration=False):
     """Build the reference index with bounded, ordered parallel receipt reads.
 
     Only lstat/JSON/event-time reads run concurrently. Receipt/result validation,
@@ -225,7 +236,8 @@ def build_resume_index(control, db_path, progress_callback=None, progress_interv
         def canonical_receipts():
             for directory in reversed(controls):
                 notify(force=True, status='enumerating', current_control=str(directory), current_receipt=None)
-                paths = _receipt_paths(directory, discovered if progress_callback is not None else None)
+                paths = _receipt_paths(directory, discovered if progress_callback is not None else None,
+                                       strict=strict_enumeration)
                 notify(force=True, status='reading_receipts', current_control=str(directory), current_receipt=None)
                 yield from _ordered_reads(paths, pool, read_workers * 2)
 

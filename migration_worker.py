@@ -17,6 +17,7 @@ BUFFER_SIZE = 8 * 1024 * 1024
 IDENTITY_FIELDS = ('dev', 'ino', 'size', 'mtime_ns', 'ctime_ns')
 _cancel_event = None
 _progress_callback = None
+_directory_opener = None
 
 
 class CopyCancelled(Exception):
@@ -109,6 +110,20 @@ def configure_progress_callback(fn):
     _progress_callback = fn
 
 
+def configure_directory_opener(fn_or_none):
+    """Opt in to an equally strict read-only whole-parent opener.
+
+    The callable accepts (root, rel) and returns an owned (parent_fd, basename).
+    It must reject symlinks in every ancestor. Missing destination directories
+    still use the conservative creation walk; no payload/verification behavior
+    changes. Configure once before starting worker threads. None is the default.
+    """
+    if fn_or_none is not None and not callable(fn_or_none):
+        raise TypeError('directory opener must be callable or None')
+    global _directory_opener
+    _directory_opener = fn_or_none
+
+
 class SourceChanged(Exception):
     pass
 
@@ -152,20 +167,41 @@ def _directory_flags():
     return os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, 'O_CLOEXEC', 0)
 
 
+def _open_directory_component(parent_fd, name, create=False):
+    """Open an anchored real directory, creating only when it is missing.
+
+    Existing ancestors are by far the common case. Avoid mkdir(EEXIST), which
+    still takes a directory write lock on shared filesystems. Both opens reject
+    symlinks; a concurrent creator may win mkdir without weakening that check.
+    """
+    try:
+        return os.open(name, _directory_flags(), dir_fd=parent_fd)
+    except FileNotFoundError:
+        if not create:
+            raise
+    try:
+        os.mkdir(name, mode=0o755, dir_fd=parent_fd)
+    except FileExistsError:
+        pass
+    return os.open(name, _directory_flags(), dir_fd=parent_fd)
+
+
 def _open_root(root, create=False):
     """Walk every component with O_NOFOLLOW, including the root's ancestors."""
+    opener = _directory_opener
+    if opener is not None:
+        try:
+            return opener(root, '__directory_open_root__')[0]
+        except FileNotFoundError:
+            if not create:
+                raise
     root = os.path.abspath(root)
     fd = os.open('/', _directory_flags())
     try:
         for part in root.split('/'):
             if not part:
                 continue
-            if create:
-                try:
-                    os.mkdir(part, mode=0o755, dir_fd=fd)
-                except FileExistsError:
-                    pass
-            newfd = os.open(part, _directory_flags(), dir_fd=fd)
+            newfd = _open_directory_component(fd, part, create=create)
             os.close(fd)
             fd = newfd
         return fd
@@ -176,15 +212,17 @@ def _open_root(root, create=False):
 
 def _open_parent(root, rel, create=False):
     parts = _components(rel)
+    opener = _directory_opener
+    if opener is not None:
+        try:
+            return opener(root, rel)
+        except FileNotFoundError:
+            if not create:
+                raise
     fd = _open_root(root, create=create)
     try:
         for part in parts[:-1]:
-            if create:
-                try:
-                    os.mkdir(part, mode=0o755, dir_fd=fd)
-                except FileExistsError:
-                    pass
-            newfd = os.open(part, _directory_flags(), dir_fd=fd)
+            newfd = _open_directory_component(fd, part, create=create)
             os.close(fd)
             fd = newfd
         return fd, parts[-1]
@@ -199,11 +237,7 @@ def ensure_destination_directory(dst_root, rel=''):
     fd = _open_root(dst_root, create=True)
     try:
         for part in parts:
-            try:
-                os.mkdir(part, mode=0o755, dir_fd=fd)
-            except FileExistsError:
-                pass
-            newfd = os.open(part, _directory_flags(), dir_fd=fd)
+            newfd = _open_directory_component(fd, part, create=True)
             os.close(fd)
             fd = newfd
         return _record(os.fstat(fd))

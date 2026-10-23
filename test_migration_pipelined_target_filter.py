@@ -438,7 +438,7 @@ class PipelinedTargetFilterTests(unittest.TestCase):
                 obj._refresh_publication_tuning()
         finally:
             timer.join()
-        factory.assert_called_once_with(workers=16, max_pending=64)
+        factory.assert_called_once_with(workers=16, max_pending=64, check_on_submit=True)
         self.assertEqual(observed, [(True, True, 51, 701, {'other/before-tuning'}, 101, 1020)])
         self.assertIsNot(obj._task_publisher, old_pool)
         self.assertFalse(obj._publication_finished)
@@ -454,6 +454,16 @@ class PipelinedTargetFilterTests(unittest.TestCase):
         self.assertEqual(obj.discovered_bytes, 1050)
         self.assertEqual(obj.assigned, {'other/before-tuning', 'other/after-tuning'})
         self.assertEqual(read_json(self.task_path(701))['entries'][0]['rel'], 'other/after-tuning')
+
+    def test_tuning_keeps_deferred_main_thread_check_policy(self):
+        obj = self.make()
+        obj._publication_check_on_submit = False
+        self.tuning(obj,publish_workers=16,publish_limit=64)
+        with mock.patch.object(pipelined.time,'monotonic',return_value=100.0):
+            obj._refresh_publication_tuning()
+        self.pools.append(obj._task_publisher)
+        self.assertFalse(obj._task_publisher.check_on_submit)
+        self.assertFalse(obj._publication_snapshot()['main_thread_target_checks'])
 
     def test_tuning_rejects_changed_payload_for_same_operation_but_old_pool_stays_healthy(self):
         obj = self.make()

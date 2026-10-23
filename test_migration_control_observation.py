@@ -63,6 +63,34 @@ class ControlObservationTest(unittest.TestCase):
         self.assertFalse(result['complete'])
         self.assertIsNone(result['stages']['p1-r1']['running'])
 
+    def test_flat_and_64_sharded_running_markers_are_counted_and_empty_is_correct(self):
+        stage = self.stage('p3-r3')
+        markers = [stage / 'running' / 'broker--legacy--128.json']
+        markers.extend(stage / 'running' / str(i) / ('broker--new--%d.json' % i)
+                       for i in range(64))
+        for index, path in enumerate(markers):
+            write_json(path, {'id': index})
+        with mock.patch('builtins.open', side_effect=AssertionError('file content opened')):
+            result = census.observe_stage_queues(self.control)
+        self.assertTrue(result['complete'])
+        self.assertEqual(result['stages']['p3-r3']['running'], 65)
+        self.assertEqual(result['stages']['p3-r3']['other_entries'], [])
+        self.assertFalse(result['all_queues_empty'])
+        for path in markers:
+            path.unlink()
+        result = census.observe_stage_queues(self.control)
+        self.assertTrue(result['complete'])
+        self.assertEqual(result['stages']['p3-r3']['running'], 0)
+        self.assertTrue(result['all_queues_empty'])
+
+    def test_running_shard_symlink_is_unknown_and_never_followed(self):
+        stage = self.stage('p3-r3')
+        (stage / 'running' / '0').symlink_to(stage / 'pending' / '0', target_is_directory=True)
+        result = census.observe_stage_queues(self.control)
+        self.assertFalse(result['complete'])
+        self.assertIsNone(result['stages']['p3-r3']['running'])
+        self.assertFalse(result['all_queues_empty'])
+
     def test_unpublished_or_unknown_entries_prevent_empty_claim(self):
         stage = self.stage('p1-r1')
         (stage / 'pending' / '0' / '.task.tmp').touch()

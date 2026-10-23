@@ -1,6 +1,7 @@
 """Local equivalence, ordering, concurrency, and abort fixtures for parallel seed."""
 
 import concurrent.futures
+from contextlib import closing
 import json
 import os
 from pathlib import Path
@@ -30,7 +31,7 @@ class ParallelResumeTests(unittest.TestCase):
         self.control.mkdir()
 
     def rows(self, path):
-        with sqlite3.connect(path) as db:
+        with closing(sqlite3.connect(path)) as db:
             return db.execute('SELECT * FROM files ORDER BY rel').fetchall()
 
     def compare(self):

@@ -21,7 +21,9 @@ NEW = '1e56d871-526b-4036-950b-d11340c193ba'
 
 class TransportTests(unittest.TestCase):
     def setUp(self):
-        temp = tempfile.TemporaryDirectory(dir=WORK, prefix='ssh-route-fixture-')
+        # Routing is mocked; keep its transient JSON on local storage rather
+        # than making teardown depend on shared-directory cache visibility.
+        temp = tempfile.TemporaryDirectory(dir='/tmp', prefix='ssh-route-fixture-')
         self.addCleanup(temp.cleanup)
         self.base = Path(temp.name)
         for patch in (mock.patch.object(transport, 'BASE', self.base),

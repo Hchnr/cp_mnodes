@@ -16,6 +16,12 @@ collected by that call; failures must never be counted as published tasks.
 Task IDs and target paths must be unique to this coordinator. Existing paths,
 including migration_io snapshot paths, are rejected. As with migration_io, this
 is not a distributed lock: competing publishers of the same ID are forbidden.
+
+The optional check_on_submit=False omits only the duplicate filesystem check on
+the owner thread. The publication worker always checks the exact same existing
+path/snapshot/symlink guards before writing; its rejection is delivered through
+PublicationError rather than a synchronous submit exception. In-memory duplicate
+ID/path checks and publication capacity limits remain synchronous in both modes.
 """
 
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
@@ -68,16 +74,19 @@ class BoundedTaskPublisher:
     results. They never cancel queued futures, even after a write has failed.
     """
 
-    def __init__(self, workers=8, max_pending=64, writer=write_json):
+    def __init__(self, workers=8, max_pending=64, writer=write_json, *, check_on_submit=True):
         if type(workers) is not int or not 1 <= workers <= 128:
             raise ValueError("workers must be an integer from 1 to 128")
         if type(max_pending) is not int or not workers <= max_pending <= 4096:
             raise ValueError("max_pending must be an integer from workers to 4096")
         if not callable(writer):
             raise TypeError("writer must be callable")
+        if type(check_on_submit) is not bool:
+            raise TypeError('check_on_submit must be boolean')
         self.workers = workers
         self.max_pending = max_pending
         self._writer = writer
+        self.check_on_submit = check_on_submit
         self._owner = threading.get_ident()
         self._executor = ThreadPoolExecutor(max_workers=workers,
                                             thread_name_prefix='task-publisher')
@@ -123,7 +132,8 @@ class BoundedTaskPublisher:
             raise ValueError("refusing reused target path: " + str(target))
         if len(self._pending) >= self.max_pending:
             return False
-        _fresh_target(target)
+        if self.check_on_submit:
+            _fresh_target(target)
         # A shallow copy is insufficient: scanner batches and nested known
         # metadata can be mutated as soon as this method returns.
         private_payload = deepcopy(payload)
