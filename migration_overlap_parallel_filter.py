@@ -176,6 +176,7 @@ class ParallelFilterResume(OverlapResume):
                 raise ValueError('prepared manifest must exist within this control')
         elif self.combined_manifest.exists():
             raise FileExistsError(str(self.combined_manifest))
+        self.combined_manifest = self._select_adoption_manifest(self.combined_manifest)
         self.old_manifests = [Path(self.handover[key]).resolve() for key in ('warm_manifest', 'missing_manifest')]
         for path in self.old_manifests:
             if os.path.commonpath((str(self.control), str(path))) != str(self.control) or not path.is_file():
@@ -186,6 +187,10 @@ class ParallelFilterResume(OverlapResume):
         self.save(status='scanning', recovery_label=str(self.filter_workers)+'路并行检查目标，恢复续传与历史索引同时进行',
                   parallel_target_threads=self.filter_workers, target_filter_inflight=self.filter_limit,
                   active_manifest=str(self.combined_manifest), foreground_handover=str(self.handover_path))
+
+    def _select_adoption_manifest(self, proposed):
+        """Default unchanged; same-pass subclasses must independently prove reuse."""
+        return proposed
 
     def _probe_missing(self, entry):
         parent = None

@@ -65,6 +65,76 @@ class FastOpenProbeRolloutTests(unittest.TestCase):
                         dict(live, argv=['unknown']), dict(live, state='Z'), {}, None):
             self.assertFalse(deploy.same_process(changed, self.old))
 
+    def test_root_cold_probe_requires_exact_run_host_entry_and_argv(self):
+        cfg = dict(self.cfg, cold_frontier_v1=True, job='fixture')
+        host = 'job-fixture-' + self.node
+        old = dict(self.old, host=host)
+        old['argv'] = ['/usr/bin/python3', '-u', str(self.control/'migration_probe_fast_open.py'),
+            '--control', str(self.control), '--port', str(old['port']), '--slots', '64',
+            '--stop-cache-seconds', '0.1', '--advertise-address', '172.24.102.30',
+            '--record', str(self.control/'probe-roles'/(host+'.json'))]
+        self.write_roles(old)
+        with mock.patch.object(deploy.socket, 'gethostname', return_value=host):
+            value, _ = deploy.validate_role(self.control, self.bundle, self.node, cfg)
+            self.assertEqual(value, old)
+            for changes in ({'cold_frontier_v1':False}, {'job':'wrong'}):
+                with self.assertRaises(ValueError):
+                    deploy.validate_role(self.control, self.bundle, self.node, dict(cfg, **changes))
+            changed = dict(old, argv=old['argv'][:-1]+['/wrong-record'])
+            self.write_roles(changed)
+            with self.assertRaises(ValueError):
+                deploy.validate_role(self.control, self.bundle, self.node, cfg)
+
+    def test_opath_policy_and_entry_are_digest_and_run_bound(self):
+        self.assertEqual(deploy.new_entrypoint(self.control,self.bundle,self.cfg).name,
+                         'migration_probe_fast_open.py')
+        policy={'version':1,'control':str(self.control),'run_id':self.cfg['run_id'],'parent_open':'O_PATH'}
+        path=self.bundle/'parent-open.json';path.write_text(json.dumps(policy))
+        with self.assertRaises(ValueError):deploy.new_entrypoint(self.control,self.bundle,self.cfg)
+        (self.bundle/'migration_probe_path_open.py').write_text('# fixture entry\n')
+        self.manifest()
+        self.assertEqual(deploy.new_entrypoint(self.control,self.bundle,self.cfg).name,
+                         'migration_probe_path_open.py')
+        path.write_text(json.dumps(dict(policy,run_id='wrong')))
+        with self.assertRaises(ValueError):deploy.new_entrypoint(self.control,self.bundle,self.cfg)
+
+    def test_child_path_probe_can_be_bound_for_a_guarded_reverse_rollout(self):
+        old = dict(self.old, argv=list(self.old['argv']))
+        old['argv'][2] = str(self.control/'old-bundle/migration_probe_path_open.py')
+        self.write_roles(old)
+        value, _ = deploy.validate_role(self.control,self.bundle,self.node,self.cfg)
+        self.assertEqual(value,old)
+        old['argv'][2] = str(self.control/'../outside/migration_probe_path_open.py')
+        self.write_roles(old)
+        with self.assertRaises(ValueError):
+            deploy.validate_role(self.control,self.bundle,self.node,self.cfg)
+
+    def test_batch_parent_entry_requires_exact_frozen_policy_and_health(self):
+        policy = {'version': 1, 'control': str(self.control), 'run_id': self.cfg['run_id'],
+                  'parent_reuse': 'request-scoped'}
+        path = self.bundle / 'batch-parent.json'
+        path.write_text(json.dumps(policy))
+        entry = self.bundle / 'migration_probe_batch_parent.py'
+        entry.write_text('# fixture entry\n')
+        self.manifest()
+        self.assertEqual(deploy.new_entrypoint(self.control, self.bundle, self.cfg), entry)
+        path.write_text(json.dumps(dict(policy, run_id='wrong')))
+        self.manifest()
+        with self.assertRaises(ValueError):
+            deploy.new_entrypoint(self.control, self.bundle, self.cfg)
+        path.write_text(json.dumps(policy))
+        (self.bundle / 'parent-open.json').write_text('{}')
+        self.manifest()
+        with self.assertRaises(ValueError):
+            deploy.new_entrypoint(self.control, self.bundle, self.cfg)
+
+    def test_batch_parent_predecessor_can_be_rolled_back_with_full_identity(self):
+        old = dict(self.old, argv=list(self.old['argv']))
+        old['argv'][2] = str(self.control / 'old-bundle/migration_probe_batch_parent.py')
+        self.write_roles(old)
+        value, _ = deploy.validate_role(self.control, self.bundle, self.node, self.cfg)
+        self.assertEqual(value, old)
+
     def test_manifest_must_cover_all_files_and_exact_digests(self):
         digest = deploy.validate_sources(self.bundle)
         self.assertEqual(len(digest), 64)
@@ -153,6 +223,28 @@ class FastOpenProbeRolloutTests(unittest.TestCase):
         with mock.patch.object(deploy.time, 'sleep'):
             self.assertTrue(deploy.protocol_checks(busy_request, 'marker')['batch_probe_200'])
         self.assertEqual(busy_once, {'/probe', '/probe-batch'})
+
+        batch_seen = []
+        def partial_busy(route, body=None, authenticated=True):
+            status, value = request(route, body, authenticated)
+            if route == '/probe-batch' and status == 200:
+                batch_seen.append(True)
+                if len(batch_seen) == 1:
+                    value['results'][-1] = {'status': 503, 'reason': 'metadata slots busy'}
+            return status, value
+        with mock.patch.object(deploy.time, 'sleep'):
+            self.assertTrue(deploy.protocol_checks(partial_busy, 'marker')['batch_probe_200'])
+        self.assertEqual(len(batch_seen), 2)
+
+        def bad_item(route, body=None, authenticated=True):
+            status, value = request(route, body, authenticated)
+            if route == '/probe-batch' and status == 200:
+                value['results'][-1] = {'status': 409, 'reason': 'unsafe parent'}
+            return status, value
+        with mock.patch.object(deploy.time, 'sleep') as sleep:
+            with self.assertRaisesRegex(RuntimeError, 'compatibility'):
+                deploy.protocol_checks(bad_item, 'marker')
+            sleep.assert_not_called()
 
     def test_safe_single_node_launch_and_durable_one_shot(self):
         killed = []

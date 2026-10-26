@@ -34,6 +34,43 @@ GOOD = {'copied', 'skipped', 'verified', 'linked'}
 TERMINAL = {'complete', 'complete_with_changes', 'failed', 'stopped'}
 
 
+class BrokerClient:
+    """Reuse urllib handlers per worker thread, never between owners.
+
+    build_opener also constructs the default verified HTTPS context, even
+    when the broker URL is HTTP. Repeating it on every empty claim can burn
+    many CPU cores. A thread-local opener keeps urllib's mutable request
+    state isolated while retaining its original handlers, TLS verification,
+    proxy bypass, response lifetime and timeout. This is not a reply cache or
+    an HTTP keep-alive implementation; every call still reaches the broker.
+    """
+
+    def __init__(self, url, token):
+        self.url = url.rstrip('/')
+        self.token = token
+        self._local = threading.local()
+
+    def request(self, method, route, payload=None):
+        import urllib.request
+
+        body = None if payload is None else json.dumps(payload, ensure_ascii=True).encode('utf-8')
+        request = urllib.request.Request(
+            self.url + route, data=body, method=method,
+            headers={'Authorization': 'Bearer ' + self.token,
+                     'Content-Type': 'application/json'})
+        opener = getattr(self._local, 'opener', None)
+        if opener is None:
+            # The broker is on the private node network, never an HTTP proxy.
+            # Keep the default HTTPS handler and certificate verification.
+            opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+            self._local.opener = opener
+        with opener.open(request, timeout=30) as response:
+            result = json.load(response)
+        if not isinstance(result, dict) or result.get('ok') is False:
+            raise ValueError('broker returned an invalid or rejected response')
+        return result
+
+
 def now():
     return datetime.datetime.now(datetime.timezone.utc).isoformat()
 
@@ -180,7 +217,6 @@ def worker(control, threads):
     # All queue ownership and completion writes belong to the broker. Shared
     # filesystem rename/O_EXCL did not provide exclusive claims on this mount.
     import urllib.parse
-    import urllib.request
 
     control = pathlib.Path(control)
     cfg = read_json(control / 'config.json')
@@ -209,8 +245,7 @@ def worker(control, threads):
                 'verified_files': previous.get('verified_files', 0),
                 'stages': dict(previous.get('stages', {})),
                 'broker_retries': previous.get('broker_retries', 0)}
-    broker_url = cfg['broker_url'].rstrip('/')
-    broker_token = cfg['broker_token']
+    broker_request = BrokerClient(cfg['broker_url'], cfg['broker_token']).request
     mutex = threading.Lock()
     stop = threading.Event()
     configure_cancel_event(stop)
@@ -221,20 +256,6 @@ def worker(control, threads):
         with mutex:
             progress['streamed_bytes'] += amount
     configure_progress_callback(streamed)
-
-    def broker_request(method, route, payload=None):
-        body = None if payload is None else json.dumps(payload, ensure_ascii=True).encode('utf-8')
-        request = urllib.request.Request(
-            broker_url + route, data=body, method=method,
-            headers={'Authorization': 'Bearer ' + broker_token,
-                     'Content-Type': 'application/json'})
-        # The broker is on the private node network, never an HTTP proxy.
-        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-        with opener.open(request, timeout=30) as response:
-            result = json.load(response)
-        if not isinstance(result, dict) or result.get('ok') is False:
-            raise ValueError('broker returned an invalid or rejected response')
-        return result
 
     def record_broker_error(operation, exc):
         with mutex:

@@ -40,4 +40,39 @@ class Priority4ScanTests(unittest.TestCase):
  def test_resume_combined_manifest_does_not_duplicate_or_reemit_old_file(self):
   self.put('old');self.put('new');_,rows=self.run_scan();prior=[r for r in rows if r.get('rel')!='new'];self.out=self.base/'combined.jsonl';self.emitted=[];result,combined=self.run_scan(resume_records=iter(prior));self.assertEqual(sum(r.get('rel')=='old' for r in combined),1);self.assertEqual({r['rel'] for r in self.emitted},{'new'});self.assertEqual(result['files'],2)
 
+class Priority4ProcessScanTests(Priority4ScanTests):
+ def run_scan(self,**kwargs):
+  return super().run_scan(processes=2,threads_per_process=2,process_batch_size=2,**kwargs)
+ def test_same_pass_append_prunes_only_matching_completed_directory(self):
+  from migration_priority4_frontier import Priority4Prefix
+  self.put('complete/a');self.put('active/old');_,rows=self.run_scan()
+  prefix=Priority4Prefix()
+  for row in rows:prefix.add(row)
+  original=self.out.read_bytes();self.emitted=[];self.put('active/new')
+  stats,_=self.run_scan(initial_seeded_paths=prefix.paths,seed_stats=prefix.scanner.stats,
+   hardlink_index=prefix.scanner.hardlinks,append_manifest=True,skip_seeded_nondirectories=True,
+   completed_directories={'complete':prefix.directories['complete']},expected_root_identity=prefix.root_identity)
+  self.assertTrue(self.out.read_bytes().startswith(original));self.assertEqual([r['rel'] for r in self.emitted],['active/new'])
+  self.assertEqual(stats['files'],3);self.assertGreaterEqual(stats['process_readers']['pruned_completed_directories'],1)
+ def test_changed_completed_directory_is_not_pruned(self):
+  from migration_priority4_frontier import Priority4Prefix
+  self.put('complete/a');_,rows=self.run_scan();prefix=Priority4Prefix()
+  for row in rows:prefix.add(row)
+  self.put('complete/new');self.emitted=[]
+  self.run_scan(initial_seeded_paths=prefix.paths,seed_stats=prefix.scanner.stats,
+   append_manifest=True,skip_seeded_nondirectories=True,
+   completed_directories={'complete':prefix.directories['complete']},expected_root_identity=prefix.root_identity)
+  self.assertEqual([r['rel'] for r in self.emitted],['complete/new'])
+ def test_source_root_identity_mismatch_never_appends(self):
+  self.put('old');_,rows=self.run_scan();original=self.out.read_bytes()
+  with self.assertRaises(OSError):
+   self.run_scan(initial_seeded_paths={r['rel'] for r in rows},seed_stats={},append_manifest=True,
+    completed_directories={},expected_root_identity=(1,2))
+  self.assertEqual(self.out.read_bytes(),original)
+ def test_seeded_leaf_now_directory_remains_traversable(self):
+  from migration_scan import _stat_fields
+  old=self.put('old');record=dict(rel='old',kind='file',**_stat_fields(old.stat()));old.unlink()
+  self.put('old/new');stats,_=self.run_scan(resume_records=[record],skip_seeded_nondirectories=True)
+  self.assertEqual([r['rel'] for r in self.emitted],['old/new']);self.assertEqual(stats['files'],2)
+
 if __name__=='__main__':unittest.main()

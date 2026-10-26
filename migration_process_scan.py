@@ -24,10 +24,14 @@ def _error(rel, operation, exc):
             'error': str(exc), 'errno': getattr(exc, 'errno', None)}
 
 
-def _open_task(anchor, rel, expected):
-    fd = os.dup(anchor)
+def _open_task(anchor, rel, expected, fast_open=False):
+    if fast_open:
+        from migration_linux_open import open_directory_beneath
+        fd = open_directory_beneath(anchor, rel)
+    else:
+        fd = os.dup(anchor)
     try:
-        for part in rel.split('/') if rel else ():
+        for part in rel.split('/') if rel and not fast_open else ():
             child = _open_directory(part, dir_fd=fd)
             os.close(fd)
             fd = child
@@ -70,10 +74,46 @@ def _leaf_record(parent_fd, name, rel):
     return {'rel': rel, 'kind': kind, 'unsupported': True, **fields}
 
 
-def _reader(connection, source_root, source_identity, phase, batch_size, threads):
+def _leaf_description(child, path, observe_identity):
+    value = (child.name, path)
+    if observe_identity:
+        try:
+            observed = (child.inode(), child.is_file(follow_symlinks=False))
+        except OSError:
+            observed = (None, False)  # Uncertainty falls back to full metadata.
+        value += (observed,)
+    return value
+
+
+def _classify_child(parent_fd, child, path, observe_identity=False):
+    """Read directory metadata in the same bounded pool as leaf metadata.
+
+    Keep DirEntry's cheap type-only path for leaves, whose full metadata is
+    still selected by the sole parent. Never keep a child FD after return.
+    """
+    child_fd = None
+    try:
+        if not child.is_dir(follow_symlinks=False):
+            return 'leaf', _leaf_description(child, path, observe_identity)
+        current = child.stat(follow_symlinks=False)
+        child_fd = _open_directory(child.name, dir_fd=parent_fd)
+        actual = os.fstat(child_fd)
+        if (actual.st_dev, actual.st_ino) != (current.st_dev, current.st_ino):
+            raise OSError(errno.ESTALE, 'directory changed during inventory')
+        return 'directory', {'rel': path, 'kind': 'directory', **_stat_fields(actual)}
+    except OSError as exc:
+        return 'error', _error(path, 'open_directory', exc)
+    finally:
+        if child_fd is not None:
+            os.close(child_fd)
+
+
+def _reader(connection, source_root, source_identity, phase, batch_size, threads, fast_open=False,
+            parallel_directory_metadata=False, observe_leaf_identity=False, excluded_subtrees=None):
     """One spawned process; a page is its only in-flight IPC payload."""
     anchor = None
     frames = []
+    exclusions = (PRIORITY_SUBTREES if phase == 3 else frozenset()) if excluded_subtrees is None else excluded_subtrees
     try:
         anchor = _open_root(source_root)
         root_stat = os.fstat(anchor)
@@ -93,7 +133,7 @@ def _reader(connection, source_root, source_identity, phase, batch_size, threads
                 def push(path, identity):
                     fd = None
                     try:
-                        fd = _open_task(anchor, path, identity)
+                        fd = _open_task(anchor, path, identity, fast_open)
                         iterator = os.scandir(fd)
                     except OSError as exc:
                         if fd is not None:
@@ -116,6 +156,7 @@ def _reader(connection, source_root, source_identity, phase, batch_size, threads
                             connection.send(('records', [error]))
                         continue
                     leaves, directories, errors = [], [], []
+                    classification = []
                     exhausted = False
                     for _ in range(batch_size):
                         try:
@@ -128,7 +169,11 @@ def _reader(connection, source_root, source_identity, phase, batch_size, threads
                             exhausted = True
                             break
                         path = parent + '/' + child.name if parent else child.name
-                        if phase == 3 and path in PRIORITY_SUBTREES:
+                        if path in exclusions:
+                            continue
+                        if parallel_directory_metadata:
+                            classification.append(pool.submit(_classify_child, fd, child, path,
+                                                              observe_leaf_identity))
                             continue
                         try:
                             is_directory = child.is_dir(follow_symlinks=False)
@@ -136,7 +181,7 @@ def _reader(connection, source_root, source_identity, phase, batch_size, threads
                             errors.append(_error(path, 'stat', exc))
                             continue
                         if not is_directory:
-                            leaves.append((child.name, path))
+                            leaves.append(_leaf_description(child, path, observe_leaf_identity))
                             continue
                         child_fd = None
                         try:
@@ -151,14 +196,20 @@ def _reader(connection, source_root, source_identity, phase, batch_size, threads
                         finally:
                             if child_fd is not None:
                                 os.close(child_fd)
+                    for future in classification:
+                        kind, value = future.result()
+                        {'leaf': leaves, 'directory': directories, 'error': errors}[kind].append(value)
                     local_dirs, late_dirs = [], []
                     if leaves or directories or errors:
-                        connection.send(('page', [path for _, path in leaves], directories, errors))
+                        page = ('page', [leaf[1] for leaf in leaves], directories, errors)
+                        if observe_leaf_identity:
+                            page += ([leaf[2] for leaf in leaves],)
+                        connection.send(page)
                         command = connection.recv()
                         if command[0] != 'select':
                             raise RuntimeError('unexpected page selection')
                         selected, local_dirs = command[1:]
-                        futures = [pool.submit(_leaf_record, fd, *leaves[index]) for index in selected]
+                        futures = [pool.submit(_leaf_record, fd, *leaves[index][:2]) for index in selected]
                         entries = [future.result() for future in futures]
                         # A leaf that became a directory must be checked before
                         # it is emitted or scheduled, just like the normal path.
@@ -209,8 +260,12 @@ def _reader(connection, source_root, source_identity, phase, batch_size, threads
 
 def walk(source_root, source_identity, root_rel, root_identity, phase, consume, *,
          seeded_paths, skip_seeded_nondirectories, processes, threads_per_process,
-         batch_size, queue_size, check_cancel, on_tick=None):
+         batch_size, queue_size, check_cancel, on_tick=None, completed_directories=None,
+         fast_directory_open=False, on_reader_progress=None, parallel_directory_metadata=False,
+         concurrency_limit=None, assigned_source_guard=None, excluded_subtrees=None):
     """Walk with a bounded spawn/Pipe protocol; all callbacks run on the caller."""
+    if excluded_subtrees is not None and (phase != 4 or frozenset(excluded_subtrees) != frozenset({'eai_pwm'})):
+        raise ValueError('explicit process exclusions require the exact independent P4 namespace')
     context = multiprocessing.get_context('spawn')
     children, connections = [], []
     pending = [(root_rel, root_identity)]
@@ -218,17 +273,24 @@ def walk(source_root, source_identity, root_rel, root_identity, phase, consume, 
     ready = set()
     metrics = {'processes': processes, 'threads_per_process': threads_per_process,
                'start_method': 'spawn', 'pids': [], 'directory_tasks_by_pid': {},
+               'parallel_directory_metadata': parallel_directory_metadata,
                'pages': 0, 'leaf_names': 0, 'selected_leaves': 0,
-               'skipped_seeded_leaves': 0, 'reader_cpu_seconds': 0.0,
-               'peak_pending_directories': 1, 'local_directory_overflows': 0}
+               'directory_entries': 0, 'error_entries': 0,
+               'skipped_seeded_leaves': 0, 'skipped_assigned_leaves': 0, 'reader_cpu_seconds': 0.0,
+               'peak_pending_directories': 1, 'local_directory_overflows': 0,
+               'pruned_completed_directories': 0}
     last_tick = 0
+    last_progress = 0
+    reader_limit = processes
     completed = False
     try:
         for _ in range(processes):
             parent, child = context.Pipe(duplex=True)
             process = context.Process(target=_reader,
                                       args=(child, source_root, source_identity, phase,
-                                            batch_size, threads_per_process))
+                                            batch_size, threads_per_process, fast_directory_open,
+                                            parallel_directory_metadata, assigned_source_guard is not None,
+                                            excluded_subtrees))
             process.start()
             child.close()
             children.append(process)
@@ -239,11 +301,23 @@ def walk(source_root, source_identity, root_rel, root_identity, phase, consume, 
                 check_cancel()
                 if on_tick is not None:
                     on_tick()
+                if concurrency_limit is not None:
+                    value = concurrency_limit()
+                    if type(value) is not int or not 1 <= value <= processes:
+                        raise ValueError('source reader limit must be within the prepared pool')
+                    reader_limit = value
+                metrics['reader_limit'] = reader_limit
+                metrics['busy_readers'] = len(busy)
                 last_tick = now
+                if on_reader_progress is not None and now - last_progress >= 1:
+                    on_reader_progress(metrics)
+                    last_progress = now
             # A fast first spawn must not finish a small/warm tree while its
             # peers are still importing. Start work after every reader is ready.
             if len(ready) == len(children):
                 for index in ready - busy:
+                    if index >= reader_limit:
+                        continue
                     if not pending:
                         break
                     rel, expected = pending.pop()
@@ -262,16 +336,33 @@ def walk(source_root, source_identity, root_rel, root_identity, phase, consume, 
                     metrics['pids'].append(message[1])
                     metrics['directory_tasks_by_pid'][message[1]] = 0
                 elif kind == 'page':
-                    paths, directories, errors = message[1:]
+                    paths, directories, errors = message[1:4]
+                    observations = message[4] if assigned_source_guard is not None else None
+                    if observations is not None and len(observations) != len(paths):
+                        raise RuntimeError('source reader returned unaligned leaf identities')
                     metrics['pages'] += 1
                     metrics['leaf_names'] += len(paths)
-                    selected = [i for i, path in enumerate(paths)
-                                if not skip_seeded_nondirectories or path not in seeded_paths]
+                    metrics['directory_entries'] += len(directories)
+                    metrics['error_entries'] += len(errors)
+                    selected = []
+                    for i, path in enumerate(paths):
+                        if skip_seeded_nondirectories and path in seeded_paths:
+                            metrics['skipped_seeded_leaves'] += 1
+                        elif (assigned_source_guard is not None
+                              and assigned_source_guard.matches(path, *observations[i])):
+                            metrics['skipped_assigned_leaves'] += 1
+                        else:
+                            selected.append(i)
                     metrics['selected_leaves'] += len(selected)
-                    metrics['skipped_seeded_leaves'] += len(paths) - len(selected)
                     local_dirs = []
                     for directory_index, entry in enumerate(directories):
                         consume(entry)
+                        if completed_directories is not None:
+                            previous = completed_directories.get(entry['rel'])
+                            if previous is not None and tuple(entry[k] for k in (
+                                    'dev', 'ino', 'mtime_ns', 'ctime_ns')) == previous:
+                                metrics['pruned_completed_directories'] += 1
+                                continue
                         if len(pending) < queue_size:
                             pending.append((entry['rel'], (entry['dev'], entry['ino'])))
                         else:

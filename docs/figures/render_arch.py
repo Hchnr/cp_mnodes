@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Render the architecture as portable vector SVG and 2x PNG.
+"""Render the fixed-manifest architecture as native SVG and 2x PNG.
 
-Requires matplotlib and a CJK font. Example:
-  python3 docs/figures/render_arch.py --font /path/to/NotoSansCJKsc-Regular.otf
-SVG text is converted to vector outlines so readers need no installed CJK font.
+Requires matplotlib and a CJK font; --font /path/to/NotoSansCJKsc-Regular.otf.
+The archived producer/broker figure is rendered by render_arch_legacy.py.
 """
 import argparse
 from pathlib import Path
@@ -12,7 +11,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib import font_manager
 from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
-from matplotlib.path import Path as MPath
+from matplotlib.path import Path as VectorPath
 
 
 def main():
@@ -20,117 +19,88 @@ def main():
     parser.add_argument('--font', required=True, type=Path)
     args = parser.parse_args()
     font_manager.fontManager.addfont(str(args.font))
-    font = font_manager.FontProperties(fname=str(args.font)).get_name()
-    plt.rcParams.update({'font.family': font, 'svg.fonttype': 'path', 'axes.unicode_minus': False})
-    fig, ax = plt.subplots(figsize=(18, 15.8), dpi=100)
+    name = font_manager.FontProperties(fname=str(args.font)).get_name()
+    plt.rcParams.update({'font.family': name, 'svg.fonttype': 'path'})
+    fig, ax = plt.subplots(figsize=(16, 13), dpi=100)
     fig.subplots_adjust(0, 0, 1, 1)
-    ax.set(xlim=(0, 1800), ylim=(1580, 0))
-    ax.axis('off')
+    ax.set(xlim=(0,1600), ylim=(1300,0)); ax.axis('off')
     fig.patch.set_facecolor('#f8fafc')
-    ink, muted = '#15253e', '#5b6b80'
-    blue, teal, amber, purple = '#3e64b0', '#137f7a', '#b36c18', '#7760a4'
+    ink, muted, blue, teal, orange, purple = '#192940','#63748b','#4066af','#167d79','#b26b17','#7859a4'
 
-    def text(x, y, s, size=12, color=ink, ha='left', va='top'):
-        ax.text(x, y, s, fontsize=size, color=color, ha=ha, va=va, linespacing=1.65)
+    def text(x,y,s,size=12,color=ink):
+        ax.text(x,y,s,fontsize=size,color=color,va='top',linespacing=1.7)
 
-    def box(x, y, w, h, title, lines, color=blue, fill='#ffffff', title_size=14):
-        ax.add_patch(FancyBboxPatch((x,y),w,h,boxstyle='round,pad=0,rounding_size=12',
-                                   linewidth=1.25, edgecolor=color, facecolor=fill, zorder=2))
-        ax.plot([x+18,x+w-18],[y+54,y+54],color=color,alpha=.2,lw=1,zorder=3)
-        text(x+20,y+16,title,title_size,color)
-        text(x+20,y+72,lines,11.3)
+    def box(x,y,w,h,title,body,color=blue,fill='#ffffff',size=14):
+        ax.add_patch(FancyBboxPatch((x,y),w,h,boxstyle='round,pad=0,rounding_size=13',
+                                 edgecolor=color,facecolor=fill,lw=1.2,zorder=2))
+        text(x+20,y+17,title,size,color)
+        ax.plot([x+20,x+w-20],[y+54,y+54],lw=.8,color=color,alpha=.25,zorder=3)
+        text(x+20,y+72,body,11.5)
 
-    def panel(x,y,w,h,title,subtitle='',color='#cad5e3'):
-        ax.add_patch(FancyBboxPatch((x,y),w,h,boxstyle='round,pad=0,rounding_size=16',
-                                   linewidth=1.2,edgecolor=color,facecolor='#eef3f9',zorder=0))
-        text(x+22,y+18,title,15)
-        if subtitle:text(x+22,y+49,subtitle,10.5,muted)
+    def arrow(points,color=blue,both=False,dashed=False,lw=1.8):
+        ax.add_patch(FancyArrowPatch(path=VectorPath(points,[VectorPath.MOVETO]+[VectorPath.LINETO]*(len(points)-1)),
+                     arrowstyle='<->' if both else '-|>',color=color,lw=lw,mutation_scale=13,
+                     linestyle=(0,(5,4)) if dashed else '-',zorder=4))
 
-    def arrow(points,color=blue,lw=1.8,both=False,dashed=False):
-        codes=[MPath.MOVETO]+[MPath.LINETO]*(len(points)-1)
-        ax.add_patch(FancyArrowPatch(path=MPath(points,codes),arrowstyle='<->' if both else '-|>',
-                    mutation_scale=13,linewidth=lw,color=color,linestyle=(0,(5,4)) if dashed else '-',
-                    zorder=4,capstyle='round',joinstyle='round'))
+    def label(x,y,s,color=muted,size=10.5):
+        ax.text(x,y,s,ha='center',va='center',fontsize=size,color=color,zorder=5,
+                bbox={'facecolor':'#f8fafc','edgecolor':'none','pad':3})
 
-    def label(x,y,s,color=muted,size=10):
-        ax.text(x,y,s,fontsize=size,color=color,ha='center',va='center',
-                bbox={'facecolor':'#f8fafc','edgecolor':'none','pad':3},zorder=5)
+    text(40,30,'固定清单补拷 · 当前监控选择的架构',25)
+    text(40,86,'2026-10-26 核对  |  12 个节点 × 1 个进程 × 64 个复制线程 = 768 个配置工作槽',13,muted)
+    text(40,129,'输入边界：4,412,943 个普通文件 / 4,148,614,479,512 B；精确排除 eai_pwm/datasets/raw',12,muted)
 
-    text(40,32,'多节点共享存储复制 · 进程与并发架构',25)
-    text(40,86,'配置快照  2026-10-22 18:53 CST    |    优先级 3 恢复链路    |    单一任务所有者 + 多进程只读供给',12,muted)
-    for x, number, desc in [(40,'8 × 16','源元数据线程槽'),(460,'8 × 64','客户端回退线程槽'),
-                            (890,'12 × 64','远端元数据操作槽'),(1320,'12 × 128','复制工作槽')]:
-        text(x,133,number,23)
-        text(x+155,145,desc,11,muted)
+    box(40,200,450,200,'01  只读查漏结果 · 冻结输入',
+        'missing-files.jsonl.gz\n校验清单 SHA-256、路径有序且唯一\n源 inode / size / mtime / ctime 随项绑定',teal,'#effaf7')
+    box(560,200,450,200,'02  离线准备 · 不接管旧队列',
+        '按字节 + 每文件固定开销进行分片\n冻结 12 份互斥分片与复制源码摘要\n主机名 / 挂载身份 / 计数检查',blue,'#eef3ff')
+    box(1080,200,480,200,'03  共享控制目录中的 12 份分片',
+        '每节点一个不可变 .jsonl.gz\n顺序读取本节点分片；不跨节点抢占\n分片及代码 SHA 在启动时复核',purple,'#f7f2fc')
+    arrow([(490,300),(560,300)],teal)
+    arrow([(1010,300),(1080,300)],blue)
 
-    panel(40,215,1240,730,'A  MASTER · 协调主机','下面四类工作属于不同进程/线程资源；路径预约、ID、索引与清单保持单一归属')
-    box(70,315,340,230,'源目录读者：8 个子进程',
-        '每进程 16 个 scan-stat 线程\n目录页面 ≤ 256 项；双向 Pipe\n父进程先选未知叶子，子进程 stat\n仅返回目录项与元数据',blue,'#f5f8ff')
-    box(450,315,350,230,'唯一 producer · 主线程',
-        '路径去重 / 历史候选交错供给\n硬链归属 / manifest / 索引\n预约任务 ID，组装文件批次\n收割检查和发布结果，推进阶段',blue,'#e9f0ff')
-    box(840,315,400,230,'检查客户端：8 个子进程',
-        '每进程一次执行 1 个批次\n每批 ≤ 64 项；正常路径 1 次 HTTP\n每进程 64 线程用于单项 / 失败回退\n总在途 ≤ 4096 项（含排队结果）',teal,'#f0faf8')
-    label(430,575,'有界 IPC')
-    arrow([(410,422),(450,422)])
-    arrow([(800,422),(840,422)],teal,both=True)
-    label(820,575,'批次 / 结果')
-    arrow([(625,545),(625,650)])
-    label(625,600,'主线程预约后提交')
-    box(450,650,350,180,'发布池 · producer 内 8 线程',
-        '64 批在途 / 待收集上限\n仅写独立 pending 文件\n批次通常 ≤ 64 项 / 约 1 GiB',blue)
-    box(70,650,340,220,'独立 broker 进程',
-        'HTTP 请求按线程处理\n共享 FS 操作并发门限 64\n短 SQLite 事务 + owner/task 锁\n可选 running 标记 64 分片',blue)
-    box(840,650,400,180,'本机状态 · 两套独立权威',
-        'producer 索引：路径 / 历史成功证明\nbroker SQLite/WAL：claims / lease\n分配不依赖 NFS 抢锁\n进程交接保留原租约与持久回执',purple,'#f7f3fc')
-    text(70,895,'producer 不搬运文件内容；broker 不转发文件内容。',11,muted)
+    ax.add_patch(FancyBboxPatch((400,490),760,370,boxstyle='round,pad=0,rounding_size=16',
+                             facecolor='#fff8ed',edgecolor='#d8c2a1',lw=1.2,zorder=0))
+    text(422,505,'执行单元 × 12：master × 1 + worker × 11',15)
+    text(422,542,'每节点一个 OS 进程；主循环 + 最多 64 个复制线程，不另设校验线程池',11,muted)
+    box(425,590,320,230,'主线程 · 顺序供给与落盘',
+        '读取分片 / 检查 stop.json\n最多 64 个未收割 future\n收集结果、追加逐文件回执\n约每 3 秒 flush/fsync 和进度发布',blue)
+    box(795,590,340,230,'线程池 · 最多 64 路',
+        '每槽一次处理一个完整文件\n身份检查 → 临时文件复制\n源 SHA + 目标读回校验\n元数据 / fsync / 不覆盖发布',orange)
+    arrow([(745,700),(795,700)],blue,both=True)
+    label(770,850,'文件任务 / 完成结果',blue)
 
-    panel(1320,215,440,420,'B  12 节点 · 只读 probe','每节点 1 个服务进程，master 也包含在内')
-    box(1350,315,380,280,'认证 /probe-batch 服务',
-        '每批 ≤ 64 项；保序返回逐项结果\n每服务 64 个 batch-pool 线程\n同一 FS 信号量：64 路元数据操作\nHTTP 处理槽上限 128\n另有 1 个健康上报线程\n读取共享源 / 目标元数据，不复制内容',teal,'#f0faf8')
-    arrow([(1240,422),(1350,422)],teal,both=True)
-    label(1295,390,'HTTP 批次',teal,9)
-    box(1320,680,440,265,'旁路与阶段性进程',
-        '常驻观测：metrics / performance watch\n用户 CLI：progress\n恢复：索引 helper / checkpoint 准备\n阶段收尾：回执收集 / 硬链 / 目录元数据\n它们读取持久证据，不另起任务预约者',color='#7c8795',fill='#ffffff')
+    box(40,540,300,250,'共享源目录',
+        '/share/project\n只读已冻结清单内的文件\n源变化或消失进入回执\n不扩大到新文件或新版本',purple,'#f7f2fc')
+    box(1220,540,340,250,'共享目标目录',
+        '/share-mixed/project\n临时文件校验后 link 发布\n已有同内容副本可复用\n不同内容记冲突，不强行覆盖',purple,'#f7f2fc')
+    arrow([(340,620),(370,620),(370,460),(960,460),(960,590)],orange,lw=2.7)
+    label(665,460,'文件内容直读；不经中央 producer / broker',orange)
+    arrow([(1135,700),(1220,700)],orange,lw=2.7)
+    label(1178,665,'写入 / 读回',orange,10)
+    arrow([(1320,400),(1320,435),(585,435),(585,590)],blue)
+    label(1070,435,'各节点仅消费自己的固定分片',blue)
 
-    box(40,1050,330,210,'共享源目录',
-        '所有执行节点可见\n扫描：目录项与 stat\n复制：文件内容直接读取\n源在线变化由身份复核 / 补扫处理',purple,'#f7f3fc')
-    box(410,1050,430,290,'共享 CONTROL 目录',
-        'pending / running / done（回执）\nmanifest / 配置 / 状态快照\npending、done：64 分片\nrunning：兼容旧平铺与新 64 分片\nworker 写心跳，broker 写回执\n可变 JSON 通过不可变版本读取',purple,'#f7f3fc')
-    arrow([(625,830),(625,1050)])
-    label(625,978,'发布任务',blue)
-    arrow([(410,1160),(388,1160),(388,976),(240,976),(240,870)],blue)
-    label(310,976,'领取 / 回执持久化',blue,9)
-    arrow([(40,1150),(17,1150),(17,422),(70,422)],purple)
-    label(108,568,'源目录 → 读者',purple,10)
+    box(400,950,760,220,'共享持久证据 · 恢复权威',
+        'nodes/<node>/receipts-*.jsonl：追加、每次尝试新建，不修改旧回执\nprogress.json / launch.json / 冻结清单 / 代码 / 日志均在共享存储\n恢复时复核成功回执的当前源和目标身份；有效则跳过，不完整则按文件重试\n本机 /tmp 只放排他 flock；不存进度、不存清单',purple,'#f7f2fc')
+    arrow([(585,820),(585,950)],purple)
+    label(585,905,'追加回执 / 发布状态',purple)
+    arrow([(1020,950),(1020,900),(770,900),(770,570),(585,570),(585,590)],purple,dashed=True)
+    label(947,900,'重启复核持久回执',purple)
+    box(1220,950,340,220,'只读监控 · 独立路由',
+        'fixed-active.json 选择本轮\nfixed_progress → 冻结代码\n分母仅为本清单，不累加历史\n显式 --control 可看旧任务',teal,'#effaf7')
+    arrow([(1160,1050),(1220,1050)],teal,dashed=True)
+    box(40,950,300,220,'历史链路 · 单独保留',
+        'P3 查漏与独立 P4 引擎\n各自控制目录 / broker / 租约\n旧角色不随本轮自动恢复\n历史图：arch-legacy.svg',color='#8692a2',fill='#f1f3f6',size=13)
 
-    panel(900,1050,460,365,'C  每节点复制单元 × 12','master × 1 + worker × 11；全局 1536 槽',color='#dfcbb0')
-    box(925,1136,410,108,'primary 进程 · 64 复制线程',
-        '+ 1 心跳线程 + 1 state-cache 刷新线程',amber,'#fff8ed',13)
-    box(925,1271,410,108,'supplement 进程 · 64 复制线程',
-        '+ 1 心跳线程 + 1 state-cache 刷新线程',amber,'#fff8ed',13)
-    arrow([(240,870),(240,1009),(1130,1009),(1130,1050)],blue,both=True)
-    label(1040,1009,'HTTP claim / done',blue)
-    box(1420,1050,340,365,'共享目标目录',
-        '每个复制线程串行完成：\n读源 + SHA-256 → 写临时文件\n复读目标校验 → 元数据 / fsync\n检查源身份 → 发布正式名字\n一批逐文件处理，不拆分单文件\n没有独立校验线程池',purple,'#f7f3fc')
-    arrow([(1360,1228),(1420,1228)],amber,lw=3)
-    label(1390,1194,'写 + 校验',amber,9)
-    arrow([(205,1260),(205,1450),(1130,1450),(1130,1415)],amber,lw=3)
-    label(660,1450,'文件内容直达执行节点；不经 master producer / broker 中转',amber,11)
-    arrow([(1540,595),(1782,595),(1782,1040),(1690,1040),(1690,1050)],teal,dashed=True)
-    label(1650,994,'只读存在性 / 源身份',teal,10)
-    arrow([(840,1300),(900,1300)],purple,both=True,dashed=True)
-    label(870,1360,'状态 / 心跳',purple,9)
-
-    text(40,1501,'边界：8×64 个客户端线程槽 ≠ 512 个正常批量 HTTP 并发；8 个客户端进程正常最多并行执行 8 个批次。',11,ink)
-    text(40,1533,'蓝：任务与协调    绿：只读检查    橙粗线：文件内容    紫：共享/本机状态    虚线：状态或只读依赖；线程槽不是实测吞吐。',10.5,muted)
-    output = Path(__file__).resolve().parent
-    fig.savefig(output/'arch.svg',format='svg',facecolor=fig.get_facecolor(),metadata={'Date':None,'Creator':'cp_mnodes architecture renderer'})
-    svg = output/'arch.svg'
-    svg.write_text('\n'.join(line.rstrip() for line in svg.read_text().splitlines())+'\n')
-    fig.savefig(output/'arch.png',format='png',dpi=200,facecolor=fig.get_facecolor())
+    text(40,1220,'模式边界：无目录扫描、无中央任务发布、无 broker、无空闲 HTTP 轮询；保留逐文件复制与内容校验。',12)
+    text(40,1256,'配置槽位不等于实时活跃数；清单补拷完成不等于所有历史范围及异常项均已验收。',11,muted)
+    output=Path(__file__).resolve().parent
+    fig.savefig(output/'arch.svg',format='svg',facecolor=fig.get_facecolor(),metadata={'Date':None})
+    p=output/'arch.svg';p.write_text('\n'.join(line.rstrip() for line in p.read_text().splitlines())+'\n')
+    fig.savefig(output/'arch.png',dpi=200,facecolor=fig.get_facecolor())
     plt.close(fig)
-    print('Rendered arch.svg and arch.png')
+    print('Rendered current-mode arch.svg and arch.png')
 
 
-if __name__ == '__main__':
-    main()
+if __name__=='__main__':main()

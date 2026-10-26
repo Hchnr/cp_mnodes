@@ -27,6 +27,12 @@ import sys
 import time
 import unicodedata
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+if __name__ == '__main__':
+    from migration_fixed_progress import dispatch as _fixed_dispatch
+    if _fixed_dispatch():
+        raise SystemExit(0)
+
 from migration_nodes import load_nodes
 
 try:
@@ -147,6 +153,8 @@ def publication_probe_baseline(root, config, state, warnings):
     Its immutable handover bundle provides the preceding observation count;
     this is not a unique-file ledger and must not enter endpoint error rates.
     """
+    if state.get('target_probe_counts_scope') == 'cumulative-across-producer-handover':
+        return None  # These counters already include the predecessor exactly once.
     publication = state.get('task_publication')
     if not isinstance(publication, dict) or publication.get('scope') != 'warm-recovery-only':
         return None
@@ -424,6 +432,10 @@ def snapshot(control=None, pointer=DEFAULT_POINTER):
             'parallel_target_threads': state.get('parallel_target_threads', config.get('parallel_target_threads')),
             'target_filter_inflight': state.get('target_filter_inflight', config.get('target_filter_inflight')),
             'target_filter': state.get('target_filter', {}),
+            'source_reader_progress': state.get('source_reader_progress', {}),
+            'source_scan_acceleration': state.get('source_scan_acceleration', {}),
+            'source_state_updated': state.get('updated'),
+            'foreground_handover': state.get('foreground_handover'),
             'distributed_target_nodes': state.get('distributed_target_nodes', 0),
             'distributed_target_slots_per_node': config.get('target_probe_slots_per_node'),
             'distributed_target_probe': state.get('distributed_target_probe', {}),
@@ -462,7 +474,41 @@ def snapshot(control=None, pointer=DEFAULT_POINTER):
             'rate_bytes_per_second': None, 'eta_seconds': None,
             'nodes': nodes, 'warnings': warnings}
     view['copy_work_progress'] = copy_work_progress(view)
+    view['scan_progress'] = scan_progress(view)
     return view
+
+
+def scan_progress(view):
+    """Separate source-reader work from cumulative target checks and copy work.
+
+    The scan frontier has no reliable full-tree denominator. Never add these
+    counters together or subtract historical missing observations to infer
+    outstanding payload. Reading this summary does not walk any data tree.
+    """
+    if not view.get('recovery_warm') or view.get('stage') != 'p3-r3':
+        return {}
+    reader = view.get('source_reader_progress', {})
+    target = view.get('target_filter', {})
+    if not isinstance(reader, dict):
+        reader = {}
+    if not isinstance(target, dict):
+        target = {}
+    fields = ('leaf_names', 'directory_entries', 'error_entries')
+    values = [number(reader.get(field)) for field in fields]
+    total = sum(values) if all(value is not None for value in values) else None
+    return dict(status=('enumeration_complete' if view.get('scan_complete') else
+                        'paused' if view.get('status') in ('producer_paused', 'failed', 'stopped') else 'scanning'),
+        updated=view.get('source_state_updated'),
+        source_scope='current-reader-process; excludes inherited completed subtrees',
+        source_entries=total, source_leaf_names=values[0], source_directories=values[1],
+        source_errors=values[2],
+        source_skipped_assigned=number(reader.get('skipped_assigned_leaves')),
+        source_skipped_seeded=number(reader.get('skipped_seeded_leaves')),
+        pruned_completed_directories=number(reader.get('pruned_completed_directories')),
+        target_scope='cumulative-with-inherited-counters; not unique files',
+        target_checked=number(target.get('checked')), target_inflight=number(target.get('inflight')),
+        historical_and_current_missing=number(target.get('missing')),
+        total_entries=None, percent=None, eta_seconds=None)
 
 
 def copy_work_progress(view):
@@ -602,14 +648,74 @@ def remaining_scan_work(view):
             'estimated_seconds': estimated_entries / rate}
 
 
+class SourceRate:
+    """Use producer timestamps, not monitor polling time or copy byte counters."""
+    def __init__(self):
+        self.scope = None
+        self.samples = collections.deque()
+
+    def add(self, view, now):
+        view['source_rates'] = {}
+        reader = view.get('source_reader_progress', {})
+        if not isinstance(reader,dict):
+            return
+        stamp = sample_epoch(view.get('source_state_updated'))
+        leaves = number(reader.get('leaf_names'))
+        if (not view.get('recovery_warm') or view.get('stage') != 'p3-r3'
+                or view.get('scan_complete') or stamp is None or leaves is None):
+            self.scope = None
+            self.samples.clear()
+            return
+        kind = '条目' if 'directory_entries' in reader else '文件名'
+        entries = leaves
+        if kind == '条目':
+            dirs, errors = number(reader.get('directory_entries')), number(reader.get('error_entries'))
+            if dirs is None or errors is None:
+                return
+            entries += dirs + errors
+        target=view.get('target_filter',{})
+        checked = number(target.get('checked')) if isinstance(target,dict) else None
+        missing = number(target.get('missing')) if isinstance(target,dict) else None
+        scope = (view.get('control'), view.get('foreground_handover'), kind)
+        if (scope != self.scope or (self.samples and
+                (stamp < self.samples[-1][0] or entries < self.samples[-1][1]
+                 or (checked is not None and self.samples[-1][2] is not None and checked < self.samples[-1][2])
+                 or (missing is not None and self.samples[-1][3] is not None and missing < self.samples[-1][3])))):
+            self.samples.clear()
+            self.scope = scope
+        if not self.samples or stamp > self.samples[-1][0]:
+            self.samples.append((stamp, entries, checked, missing))
+        while self.samples and self.samples[0][0] < stamp - 305:
+            self.samples.popleft()
+        result = dict(unit=kind, sample_age_seconds=max(0, now-stamp),
+                      processes=reader.get('processes'),
+                      busy_readers=reader.get('busy_readers'),
+                      dispatch_limit=reader.get('reader_limit',reader.get('processes')))
+        for name, seconds in (('1m',60),('5m',300)):
+            points = [p for p in self.samples if p[0] >= stamp-seconds]
+            value = dict(seconds=0, source_per_second=None, checked_per_second=None, new_missing=None)
+            if len(points)>1 and now-stamp<=60:
+                a,z=points[0],points[-1];dt=z[0]-a[0];value['seconds']=dt
+                if dt>0:
+                    value['source_per_second']=(z[1]-a[1])/dt
+                    if a[2] is not None and z[2] is not None:
+                        value['checked_per_second']=(z[2]-a[2])/dt
+                    if a[3] is not None and z[3] is not None:
+                        value['new_missing']=z[3]-a[3]
+            result[name]=value
+        view['source_rates']=result
+
+
 class Rate:
     def __init__(self):
         self.previous = None
         self.samples = collections.deque()
         self.control = None
+        self.source = SourceRate()
 
     def add(self, view, monotonic=None):
         tick = time.time() if monotonic is None else monotonic
+        self.source.add(view,tick)
         if self.control != view.get('control'):
             self.samples.clear()
             self.control = view.get('control')
@@ -898,6 +1004,47 @@ def copy_speed_lines(view):
         ['窗口', '有效采样', '新复制完成', '传输写入'], rows, right_align=(1, 2, 3))
 
 
+def scan_progress_lines(view):
+    progress = scan_progress(view)
+    if not progress:
+        return []
+    label = {'scanning': '扫描中', 'enumeration_complete': '枚举完成，后续校验/收尾另计',
+             'paused': '已暂停/异常'}.get(progress['status'], '未知')
+    sample_age = age(progress.get('updated'), time.time())
+    freshness = f'；检查点年龄 {sample_age:.0f}s' if sample_age is not None else '；检查点年龄未知'
+    if sample_age is not None and sample_age > 60:
+        freshness += '（已过期，需核对生产端）'
+    lines = ['P3 查漏进度：' + label + freshness,
+        '  源遍历：本扫描进程已读 ' + count(progress['source_entries']) + ' 条目（' +
+        count(progress['source_leaf_names']) + ' 文件名 + ' + count(progress['source_directories']) +
+        ' 目录 + ' + count(progress['source_errors']) + ' 错误）；跳过已完成子树 ' +
+        count(progress['pruned_completed_directories']) + ' 个',
+        '  目标预检：累计 ' + count(progress['target_checked']) + ' 次；在途 ' +
+        count(progress['target_inflight']) + ' 项（累计含交接历史，非唯一文件数）']
+    rates = view.get('source_rates', {})
+    if rates:
+        def speed(window, key):
+            value = number(rates.get(window, {}).get(key))
+            if sample_age is not None and sample_age > 60:
+                return '已过期'
+            return f'{value:,.0f}' if value is not None else '采样中/未知'
+        rows = []
+        for window, name in (('1m', '近1分钟'), ('5m', '近5分钟')):
+            seconds = number(rates.get(window, {}).get('seconds')) or 0
+            rows.append([name, f'{seconds:.0f}s', speed(window, 'source_per_second'),
+                         speed(window, 'checked_per_second'), speed(window, 'new_missing')])
+        lines.extend('  ' + line for line in aligned_table(
+            ['窗口', '有效采样', '源' + rates.get('unit', '条目') + '/s', '目标检查/s', '新发现缺失'],
+            rows, right_align=(1, 2, 3, 4)))
+    else:
+        lines.append('  近期扫描速度/新增缺失：' + ('枚举已结束' if view.get('scan_complete') else '采样中/未知'))
+    if view.get('scan_complete'):
+        lines.append('  源枚举已结束，不代表内容校验和元数据收尾完成；新增缺失不等于当前待复制量。')
+    else:
+        lines.append('  全树待扫总量尚未确定，完成百分比/剩余时间未知；新增缺失不等于当前待复制量。')
+    return lines
+
+
 def render(view, details=False):
     if details:
         return render_details(view)
@@ -936,6 +1083,7 @@ def render(view, details=False):
     lines.extend('  ' + line for line in aligned_table(['分类', '数量', '逻辑字节'], rows, right_align=(1, 2)))
     lines.append('')
     lines.extend('  ' + line for line in copy_speed_lines(view))
+    lines.extend('  ' + line for line in scan_progress_lines(view))
     lines.append('  已存在仅做存在检查，待正式内容核验；待复制量按队列差值估算，含重试。')
     if not view.get('overall', {}).get('inventory_complete'):
         suffix = '；第4项尚未纳入' if pending_extension(view.get('extension_plan')) else ''

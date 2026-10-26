@@ -268,6 +268,7 @@ class InputPipeline:
             if not any(task_id <= group['barrier'] for task_id in self.owner._publication_tasks):
                 group['ack'] = self.acker.submit(self._ack, group['items'], group['barrier'])
         self.owner.state['priority_inputs'] = {
+            'closed': self.closed,
             'files_consumed': self.files, 'entries_consumed': self.entries,
             'root': str(self.owner.control / 'frontier-input'),
             'open_groups': len(self.groups),

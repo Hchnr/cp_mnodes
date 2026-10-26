@@ -1,5 +1,4 @@
-# UNDEPLOYED CANDIDATE: P4 metadata scanner only, not a complete copy engine.
-# Must not be deployed until P4 dependency, worker, broker, metadata and monitor fixtures pass.
+# Independent P4 scanner; new process-reader options require explicit deployment.
 """Bounded parallel source inventory with one manifest/task producer.
 
 Directory readers never write manifests or call emit_batch. The calling thread
@@ -91,7 +90,12 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
                batch_bytes=1024**3, batch_files=32, hardlink_index=None,
                on_error=None, overwrite_manifest=False, entries_per_second=0,
                workers=32, queue_size=8192, control=None, cancel=None,
-               resume_records=None, skip_rel=None, seed_stats=None):
+               resume_records=None, skip_rel=None, seed_stats=None,
+               initial_seeded_paths=None, append_manifest=False, skip_seeded_nondirectories=False,
+               processes=0, threads_per_process=8, process_batch_size=1024,
+               completed_directories=None, expected_root_identity=None, on_tick=None,
+               fast_directory_open=False, parallel_directory_metadata=False,
+               on_reader_progress=None, concurrency_limit=None):
     """Compatible scan_phase plus parallelism and explicit combined-manifest resume.
 
     resume_records must be complete parsed records from an older immutable
@@ -106,6 +110,28 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
         raise ValueError('phase must be 4')
     if min(batch_bytes, batch_files, workers, queue_size) < 1:
         raise ValueError('batch, worker and queue limits must be positive')
+    if (type(processes) is not int or not 0 <= processes <= 64
+            or type(threads_per_process) is not int or not 1 <= threads_per_process <= 128
+            or type(process_batch_size) is not int or not 1 <= process_batch_size <= 4096):
+        raise ValueError('invalid P4 process reader budget')
+    if initial_seeded_paths is not None and (type(initial_seeded_paths) is not set or resume_records is not None):
+        raise ValueError('prepared P4 paths and manifest replay are mutually exclusive')
+    if append_manifest and (not processes or initial_seeded_paths is None or seed_stats is None):
+        raise ValueError('P4 append requires an explicitly prepared same-pass process scan')
+    if completed_directories is not None:
+        if (not append_manifest or type(completed_directories) is not dict
+                or type(expected_root_identity) is not tuple or len(expected_root_identity) != 2
+                or any(type(value) is not int for value in expected_root_identity)):
+            raise ValueError('P4 pruning requires a proven same-pass append and source identity')
+        for rel, value in completed_directories.items():
+            _components(rel)
+            if (rel == 'eai_pwm' or rel.startswith('eai_pwm/') or type(value) is not tuple
+                    or len(value) != 4 or any(type(number) is not int for number in value)):
+                raise ValueError('invalid P4 completed-directory identity')
+    elif expected_root_identity is not None:
+        raise ValueError('source identity checkpoint requires explicit P4 completed directories')
+    if skip_seeded_nondirectories and not processes:
+        raise ValueError('P4 seeded metadata shortcut requires the explicit process protocol')
     source_root = os.path.abspath(os.fspath(source_root))
     manifest_path = os.path.abspath(os.fspath(manifest_path))
     if os.path.commonpath((os.path.realpath(source_root), os.path.realpath(manifest_path))) == os.path.realpath(source_root):
@@ -119,10 +145,11 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
     outstanding = [0]
     skipped = set() if skip_rel is None else set(skip_rel)
     seeded_keys = set()
-    seeded_paths = set()
+    seeded_paths = set() if initial_seeded_paths is None else initial_seeded_paths
     seen_paths = set()
     threads = []
     anchor = None
+    process_metrics = None
 
     def external_cancelled():
         if cancel is not None:
@@ -265,7 +292,9 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
                     outstanding[0] -= 1
                 directories.task_done()
 
-    with open(manifest_path, 'w' if overwrite_manifest else 'x', encoding='utf-8') as manifest:
+    if append_manifest and (not os.path.isfile(manifest_path) or os.path.islink(manifest_path)):
+        raise ValueError('P4 append requires the existing regular inventory file')
+    with open(manifest_path, 'a' if append_manifest else 'w' if overwrite_manifest else 'x', encoding='utf-8') as manifest:
         scanner = _Scanner(manifest, emit_batch, batch_bytes, batch_files,
                            {} if hardlink_index is None else hardlink_index,
                            on_error, phase, entries_per_second)
@@ -275,8 +304,14 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
             try:
                 anchor = _open_root(source_root)
             except OSError as exc:
+                if completed_directories is not None:
+                    raise
                 scanner.error('', 'open_source_root', exc)
             source_dev = os.fstat(anchor).st_dev if anchor is not None else None
+            if completed_directories is not None:
+                source_info = os.fstat(anchor)
+                if (source_info.st_dev, source_info.st_ino) != expected_root_identity:
+                    raise OSError(errno.ESTALE, 'P4 source checkpoint root identity changed')
             original_root_dev = None
             if resume_records is not None:
                 last_seed_cancel_check = 0
@@ -303,6 +338,13 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
                     if key != 'phase' and key in seed_stats:
                         scanner.stats[key] = seed_stats[key]
             def consume(entry):
+                if (completed_directories is not None and entry.get('kind') == 'error'
+                        and entry.get('rel') in seeded_paths):
+                    scanner.stats['errors'] += 1
+                    scanner.write(entry)
+                    if on_error is not None:
+                        on_error(entry)
+                    return
                 if (entry.get('rel') not in skipped and entry.get('rel') not in seeded_paths
                         and entry.get('rel') not in seen_paths
                         and (entry.get('rel'), entry.get('kind')) not in seeded_keys):
@@ -324,26 +366,45 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
                         os.close(fd); fd = child_fd
                         consume({'rel': phase_rel, 'kind': 'directory', **_stat_fields(os.fstat(fd))})
                     else:
-                        schedule(phase_rel, os.fstat(fd))
-                        for index in range(min(256, int(workers))):
-                            thread = threading.Thread(target=reader, name='scan-dir-' + str(index), daemon=True)
-                            threads.append(thread); thread.start()
-                        last_cancel_check = 0
-                        while True:
-                            if time.monotonic() - last_cancel_check >= 0.1:
+                        if processes:
+                            from migration_process_scan import walk
+                            def check_cancel():
                                 if external_cancelled():
-                                    raise ScanCancelled('STOP requested during parallel scan')
-                                last_cancel_check = time.monotonic()
-                            try:
-                                entry = events.get(timeout=0.1)
-                            except queue.Empty:
-                                with pending_lock:
-                                    if outstanding[0] == 0:
-                                        break
-                                continue
-                            if '_fatal' in entry:
-                                raise entry['_fatal']
-                            consume(entry)
+                                    raise ScanCancelled('STOP requested during P4 process scan')
+                            root_info = os.fstat(fd)
+                            process_metrics = walk(source_root, (os.fstat(anchor).st_dev, os.fstat(anchor).st_ino),
+                                phase_rel, (root_info.st_dev, root_info.st_ino), phase, consume,
+                                seeded_paths=seeded_paths, skip_seeded_nondirectories=skip_seeded_nondirectories,
+                                processes=processes, threads_per_process=threads_per_process,
+                                batch_size=process_batch_size, queue_size=queue_size, check_cancel=check_cancel,
+                                on_tick=on_tick, completed_directories=completed_directories,
+                                fast_directory_open=fast_directory_open,
+                                parallel_directory_metadata=parallel_directory_metadata,
+                                on_reader_progress=on_reader_progress, concurrency_limit=concurrency_limit,
+                                excluded_subtrees=PRIORITY_SUBTREES)
+                        else:
+                            schedule(phase_rel, os.fstat(fd))
+                            for index in range(min(256, int(workers))):
+                                thread = threading.Thread(target=reader, name='scan-dir-' + str(index), daemon=True)
+                                threads.append(thread); thread.start()
+                            last_cancel_check = 0
+                            while True:
+                                if time.monotonic() - last_cancel_check >= 0.1:
+                                    if external_cancelled():
+                                        raise ScanCancelled('STOP requested during parallel scan')
+                                    if on_tick is not None:
+                                        on_tick()
+                                    last_cancel_check = time.monotonic()
+                                try:
+                                    entry = events.get(timeout=0.1)
+                                except queue.Empty:
+                                    with pending_lock:
+                                        if outstanding[0] == 0:
+                                            break
+                                    continue
+                                if '_fatal' in entry:
+                                    raise entry['_fatal']
+                                consume(entry)
                 finally:
                     os.close(fd)
             if external_cancelled():
@@ -356,7 +417,8 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
                     'elapsed_seconds': round(time.time() - started, 3),
                     'scan_complete': scanner.stats['errors'] == 0,
                     'fully_copyable': scanner.stats['unsupported'] == 0,
-                    'workers': min(256, int(workers)), 'resumed_records': len(seeded_keys)}
+                    'workers': min(256, int(workers)), 'resumed_records': len(seeded_keys),
+                    'process_readers': process_metrics}
         finally:
             stop.set()
             for thread in threads:

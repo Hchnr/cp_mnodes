@@ -122,11 +122,21 @@ def validate_role(control, bundle, node, cfg):
         raise ValueError('frozen role must include full argv')
     old_entry = Path(argv[2])
     predecessor = old_entry.parent
-    if (not old_entry.is_absolute() or predecessor.parent != control or predecessor == bundle
-            or old_entry.name not in ('migration_target_probe.py', 'migration_probe_fast_open.py')):
+    root_cold_probe = (predecessor == control and cfg.get('cold_frontier_v1') is True
+                      and old['host'] == 'job-' + str(cfg.get('job')) + '-' + node
+                      and old_entry.name == 'migration_probe_fast_open.py')
+    if (not old_entry.is_absolute() or (predecessor.parent != control and not root_cold_probe) or predecessor == bundle
+            or old_entry.name not in ('migration_target_probe.py', 'migration_probe_fast_open.py',
+                                      'migration_probe_path_open.py', 'migration_probe_batch_parent.py')):
         raise ValueError('predecessor entry is not a probe directly within this control')
-    old_record = predecessor / 'roles' / node / 'probe.json'
-    expected_argv = probe_argv(old_entry, control, old['port'], endpoint.hostname, old_record)
+    if root_cold_probe:
+        old_record = control / 'probe-roles' / (old['host'] + '.json')
+        expected_argv = ['/usr/bin/python3', '-u', str(old_entry), '--control', str(control),
+                         '--port', str(old['port']), '--slots', '64', '--stop-cache-seconds', '0.1',
+                         '--advertise-address', endpoint.hostname, '--record', str(old_record)]
+    else:
+        old_record = predecessor / 'roles' / node / 'probe.json'
+        expected_argv = probe_argv(old_entry, control, old['port'], endpoint.hostname, old_record)
     if argv != expected_argv:
         raise ValueError('frozen role full argv does not match its run/node/limits')
     return old, endpoint.hostname
@@ -138,6 +148,34 @@ def probe_argv(entry, control, port, address, record):
             '--record', str(record), '--stop-cache-seconds', '0.1']
 
 
+def new_entrypoint(control, bundle, cfg):
+    policy_path = bundle / 'parent-open.json'
+    batch_path = bundle / 'batch-parent.json'
+    if batch_path.exists():
+        if policy_path.exists():
+            raise ValueError('only one parent strategy may be selected')
+        policy = json.loads(batch_path.read_bytes())
+        if policy != {'version': 1, 'control': str(control), 'run_id': cfg['run_id'],
+                      'parent_reuse': 'request-scoped'}:
+            raise ValueError('batch parent policy is not bound to this run')
+        entry = bundle / 'migration_probe_batch_parent.py'
+        manifest = json.loads((bundle / 'source-sha256.json').read_bytes())
+        if entry.name not in manifest or batch_path.name not in manifest:
+            raise ValueError('batch parent policy and entry must be source-manifest bound')
+        return entry
+    if not policy_path.exists():
+        return bundle / 'migration_probe_fast_open.py'
+    policy = json.loads(policy_path.read_bytes())
+    if policy != {'version': 1, 'control': str(control), 'run_id': cfg['run_id'],
+                  'parent_open': 'O_PATH'}:
+        raise ValueError('O_PATH probe policy is not bound to this run')
+    entry = bundle / 'migration_probe_path_open.py'
+    manifest = json.loads((bundle / 'source-sha256.json').read_bytes())
+    if entry.name not in manifest:
+        raise ValueError('O_PATH entry is not source-manifest bound')
+    return entry
+
+
 def valid_health(health, child_pid, argv, old, control, cfg):
     return (isinstance(health, dict) and health.get('ok') is True
             and health.get('pid') == child_pid and health.get('argv') == argv
@@ -146,6 +184,10 @@ def valid_health(health, child_pid, argv, old, control, cfg):
             and health.get('control') == str(control) and health.get('run_id') == cfg['run_id']
             and health.get('host') == old['host'] and health.get('port') == old['port']
             and health.get('endpoint') == old['endpoint']
+            and (Path(argv[2]).name != 'migration_probe_path_open.py'
+                 or health.get('parent_open_mode') == 'O_PATH')
+            and (Path(argv[2]).name != 'migration_probe_batch_parent.py'
+                 or health.get('batch_parent_reuse') == 'request-scoped')
             and same_process(identity(child_pid), health))
 
 
@@ -161,7 +203,18 @@ def protocol_checks(request, marker):
         deadline = time.monotonic() + 10
         while True:
             status, result = request(route, body)
-            if status != 503 or time.monotonic() >= deadline:
+            busy = status == 503
+            if route == '/probe-batch' and status == 200 and isinstance(result, dict):
+                rows = result.get('results')
+                # The batch envelope can succeed while individual items are
+                # temporarily slot-limited. Retry that read-only observation,
+                # not the replacement. Never retry away malformed/safety errors.
+                busy |= (result.get('ok') is True and isinstance(rows, list)
+                         and len(rows) == len(body['entries'])
+                         and all(isinstance(row, dict) and row.get('status') in (200, 503)
+                                 for row in rows)
+                         and any(row['status'] == 503 for row in rows))
+            if not busy or time.monotonic() >= deadline:
                 return status, result
             time.sleep(.1)
 
@@ -191,6 +244,7 @@ def run_node(control, bundle, node):
         raise RuntimeError('STOP is present')
     manifest_digest = validate_sources(bundle)
     old, address = validate_role(control, bundle, node, cfg)
+    entry = new_entrypoint(control, bundle, cfg)
     if not same_process(identity(old['pid']), old):
         raise RuntimeError('live predecessor PID/startticks/full argv do not match')
     soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
@@ -206,7 +260,7 @@ def run_node(control, bundle, node):
     new_record = role_dir / 'probe.json'
     if new_record.exists() or (role_dir / 'probe.log').exists():
         raise RuntimeError('new role/log exists; inspect this bundle before any retry')
-    new_argv = probe_argv(bundle / 'migration_probe_fast_open.py', control, old['port'], address,
+    new_argv = probe_argv(entry, control, old['port'], address,
                           new_record)
     operation = {'node': node, 'control': str(control), 'bundle': str(bundle), 'started': now(),
                  'state': 'validated', 'old_identity': old, 'new_argv': new_argv,

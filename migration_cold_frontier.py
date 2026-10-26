@@ -82,6 +82,20 @@ class ColdFrontierResume(FrontierResume):
             self._checkpoint()
             time.sleep(.005)
         self._drain_probes()
+        # These producers have all published their terminal records and the
+        # accepted input groups have crossed their probe/publication/ack
+        # barriers.  The following mandatory current-source scan discovers
+        # later additions independently; keeping the hint readers alive here
+        # only rebuilds the completed-path set and periodically re-enumerates
+        # immutable, already acknowledged ready files on the producer's GIL.
+        # Do not retire on a missing/failed feed or while a group is in flight.
+        self._inputs.close()
+        self.state['distributed_input_retired'] = {
+            'reason': 'all-feeds-complete-and-inputs-drained',
+            'files': self._inputs.files,
+            'entries': self._inputs.entries,
+            'current_source_full_scan_required': True,
+        }
 
     def run(self):
         try:

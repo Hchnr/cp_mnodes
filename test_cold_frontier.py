@@ -58,6 +58,96 @@ class ColdTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'identity'):
             self.p._read_feeds()
 
+    def complete_feeds(self):
+        for host in self.p.cfg['copy_hosts']:
+            root = self.p.control / 'frontier-input' / host
+            (root / 'ready').mkdir(parents=True, exist_ok=True)
+            (root / 'done').mkdir(exist_ok=True)
+            for name in ('progress.json', 'import-progress.json'):
+                write_json(root / name, dict(host=host,
+                    run_id=self.p.cfg['run_id'], status='complete'))
+
+    def test_complete_feeds_retire_only_after_hint_publication_and_acknowledgement(self):
+        self.complete_feeds()
+        self.fixture.fake_pool()
+        host = self.p.cfg['copy_hosts'][0]
+        path = self.p.control / 'frontier-input' / host / 'ready' / 'last.json'
+        write_json(path, dict(control=str(self.p.control),
+            run_id=self.p.cfg['run_id'], host=host,
+            entries=[{'rel': 'datasets/last', 'kind': 'file', 'size': 1}]))
+        original = self.p._inputs.close
+
+        def close_drained():
+            self.assertFalse(self.p._inputs.busy())
+            self.assertFalse(self.p.pending_probes)
+            self.assertFalse(self.p._publication_tasks)
+            self.assertIn(path, self.p._inputs.completed)
+            self.assertEqual(self.p.enqueued_batches, 1)
+            original()
+
+        with mock.patch.object(self.p._inputs, 'close', side_effect=close_drained) as close:
+            self.p.feed_frontier()
+        close.assert_called_once()
+        self.assertTrue(self.p._inputs.closed)
+        self.assertTrue(path.is_file(), 'immutable recovery hints must remain in place')
+        self.assertEqual(self.p.state['distributed_input_retired']['files'], 1)
+        self.assertTrue(self.p.state['distributed_input_retired']['current_source_full_scan_required'])
+        with mock.patch.object(self.p._inputs, '_prefetch',
+                               side_effect=AssertionError('retired reader restarted')):
+            self.p.pump_inputs(force=True)
+        self.assertTrue(self.p.state['priority_inputs']['closed'])
+
+    def test_missing_feed_keeps_input_pipeline_open_until_all_producers_complete(self):
+        self.complete_feeds()
+        self.fixture.fake_pool()
+        rows = self.p._read_feeds()
+        first = [dict(row) for row in rows]
+        first[-1]['status'] = 'waiting'
+        observed = []
+
+        def feeds():
+            observed.append(self.p._inputs.closed)
+            return first if len(observed) == 1 else rows
+
+        pump = self.p.pump_inputs
+
+        def pump_without_five_second_test_delay(*args, **kwargs):
+            self.p.feed_next = 0
+            return pump(*args, **kwargs)
+
+        with mock.patch.object(self.p, '_read_feeds', side_effect=feeds), \
+             mock.patch.object(self.p, 'pump_inputs', side_effect=pump_without_five_second_test_delay):
+            self.p.feed_frontier()
+        self.assertGreaterEqual(len(observed), 2)
+        self.assertFalse(any(observed))
+        self.assertTrue(self.p._inputs.closed)
+
+    def test_failed_feed_does_not_retire_readers_or_mark_discovery_complete(self):
+        self.complete_feeds()
+        self.fixture.fake_pool()
+        host = self.p.cfg['copy_hosts'][0]
+        write_json(self.p.control / 'frontier-input' / host / 'progress.json',
+                   dict(host=host, run_id=self.p.cfg['run_id'], status='failed'))
+        with self.assertRaisesRegex(RuntimeError, 'feed failed'):
+            self.p.feed_frontier()
+        self.assertFalse(self.p._inputs.closed)
+        self.assertNotIn('distributed_input_retired', self.p.state)
+
+    def test_retiring_inputs_does_not_replace_required_full_source_scan(self):
+        self.complete_feeds()
+        self.fixture.fake_pool()
+
+        def scan(*args, **kwargs):
+            self.assertTrue(self.p._inputs.closed)
+            kwargs['on_tick']()
+            return {'scan_complete': True}
+
+        with mock.patch('migration_frontier_resume.scan_phase', side_effect=scan) as scanning:
+            self.p.supplement_missing()
+        scanning.assert_called_once()
+        self.assertEqual(self.p.scan_batch_files, 64)
+        self.assertTrue(self.p.state['scan_complete'])
+
     def test_following_full_scan_and_original_formal_batch_configuration_remain_required(self):
         self.fixture.fake_pool()
         with mock.patch.object(self.p,'feed_frontier') as feed, \

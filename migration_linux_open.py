@@ -19,6 +19,7 @@ import sys
 _AT_FDCWD = -100
 _RESOLVE_NO_MAGICLINKS = 0x02
 _RESOLVE_NO_SYMLINKS = 0x04
+_RESOLVE_BENEATH = 0x08
 # Do not guess syscall numbers on untested ABIs. Both supported 64-bit Linux
 # architectures use 437; every other platform safely uses the original walk.
 _SYSCALL_NUMBERS = {'x86_64': 437, 'aarch64': 437}
@@ -108,6 +109,49 @@ def _open_absolute_directory(path, flags=None):
         # adding one guaranteed-failing syscall to every file's hot path.
         _openat2_unavailable = True
     return _walk_absolute_directory(path, flags)
+
+
+def open_directory_beneath(anchor, rel):
+    """Open a source directory from an existing anchor without following links.
+
+    The full relative walk is one openat2 syscall when supported. Fallback
+    retains the original component walk and O_NOATIME behavior. No payload
+    file or destination is opened; callers still verify the directory inode.
+    """
+    global _openat2_unavailable, _openat2_succeeded
+    if not isinstance(rel,str):
+        raise ValueError('relative source directory must be a string')
+    parts = _components(rel) if rel else []
+    if not parts:
+        return os.dup(anchor)
+    flags = _directory_flags() | getattr(os, 'O_NOATIME', 0)
+    if _syscall is not None and not _openat2_unavailable:
+        how = _OpenHow(flags, 0, _RESOLVE_BENEATH | _RESOLVE_NO_SYMLINKS | _RESOLVE_NO_MAGICLINKS)
+        while True:
+            ctypes.set_errno(0)
+            fd = _syscall(ctypes.c_long(_syscall_number), ctypes.c_int(anchor),
+                          ctypes.c_char_p(os.fsencode(rel)), ctypes.byref(how),
+                          ctypes.c_size_t(ctypes.sizeof(how)))
+            if fd >= 0 or ctypes.get_errno() != errno.EINTR:
+                break
+        if fd >= 0:
+            _openat2_succeeded = True
+            return int(fd)
+        code = ctypes.get_errno()
+        if code not in _UNSUPPORTED_ERRNOS:
+            raise OSError(code, os.strerror(code), rel)
+        _openat2_unavailable = True
+    from migration_scan import _open_directory
+    fd = os.dup(anchor)
+    try:
+        for part in parts:
+            child = _open_directory(part, dir_fd=fd)
+            os.close(fd)
+            fd = child
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
 
 
 def safe_open_backend():

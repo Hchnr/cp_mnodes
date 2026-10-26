@@ -1,12 +1,13 @@
 # cp_mnodes：多节点共享存储复制工具
 
-这是本次全闪到混闪迁移使用的 Python 代码归档，包含复制引擎、恢复机制、监控、测试及历次运维脚本。本文于 2026-10-22 按本地代码更新；归档内容、已部署版本和任务实际运行状态需要分别核对。上传代码本身不会启动、暂停或修改正在运行的复制任务。
+这是本次全闪到混闪迁移使用的 Python 代码归档，包含复制引擎、恢复机制、监控、测试及历次运维脚本。本文于 2026-10-26 按本地代码更新；归档内容、已部署版本和任务实际运行状态需要分别核对。上传代码本身不会启动、暂停或修改正在运行的复制任务。
 
 ## 仓库导航
 
+- [固定清单补拷（2026-10-25）](docs/fixed-manifest-copy.md)：当前只处理已核验的 4,412,943 个普通文件 / 3.773 TiB；不恢复旧扫描或全量队列，沿用原监控入口。
 - [架构说明](docs/arch.md)：进程与线程职责、并发边界、任务和数据流。
 - [迁移进度报告（2026-10-22）](docs/report_20261022.md)：截至采样时刻的进度、1 PB 条件预测、瓶颈与对应改进。
-当前恢复供给入口为 `migration_interleaved_target_filter.py`：已发现候选和新扫描交错处理，并使用预备缓存避免完整历史重放。源目录遍历支持独立 spawn 进程，目标检查由多个客户端进程向 12 节点发送批量请求；路径预约与任务编号保持单一归属。训练守护可用运行配置 `training_watchdog_enabled=false` 显式禁用。运维脚本须绑定明确的进程身份与检查点，详见设计文档。
+历史恢复供给入口为 `migration_interleaved_target_filter.py`：已发现候选和新扫描交错处理，并使用预备缓存避免完整历史重放。源目录遍历支持独立 spawn 进程，目标检查由多个客户端进程向 12 节点发送批量请求；路径预约与任务编号保持单一归属。训练守护可用运行配置 `training_watchdog_enabled=false` 显式禁用。运维脚本须绑定明确的进程身份与检查点，详见设计文档。
 
 - [设计文档](docs/design.md)：架构、断点续传、性能瓶颈与对应优化，以及仍需验证的边界。
 - `migration_*.py`：复制、扫描、协调、状态与观测模块；`test_*.py`：对应的本地测试。
@@ -79,6 +80,16 @@ NFS 上的 `rename`、`O_EXCL` 不用于跨节点任务竞争。broker 的 SQLit
 | `migration_control_observation.py` | 只读统计控制目录中的队列、问题文件名称和大小，不打开 JSON 或数据内容；读取失败明确报告，结果不是原子快照 |
 | `profile_copy_proc_only.py` | 通过真实进程的 PID、启动时间和 argv 绑定，只读采集 /proc 证据 |
 | `migration_priority4_scan.py`、`migration_priority4_worker.py`、`migration_priority4_broker.py` | 独立 P4 范围的扫描、工作进程边界与分配组件，精确排除顶层 eai_pwm，并保护控制目录；不是完整启动器 |
+| `migration_priority4_run.py`、`deploy_priority4_parallel.py` | 经明确授权并完成隔离预检后，在独立控制目录启动 P4；不停止、重启或复用 P1–3 的复制进程 |
+| `migration_parallel_progress.py`、`publish_parallel_monitor.py` | 合并两套独立范围的进度及节点表，按共同时间窗口计算速度，保留历史基线一次 |
+| `migration_warm_scan_checkpoint.py`、`prepare_cold_assignments.py` | 并行准备旧扫描/已分配任务的只读检查点；准备成功不授权交接或跳过目录 |
+| `migration_unix_queues.py`、`migration_scan_boundary.py` | 不消费消息的 Linux IPC 只读观测；仍需独立的阶段、排空及清单刷盘证明 |
+| `migration_fast_cold_resume.py`、`deploy_fast_p3_scan.py` | 预载检查点并追平同轮清单后，仅交接 P3 生产端；保留原编号、索引、seed、broker 与复制进程，实际部署须检查独立交接记录 |
+| `migration_probe_path_open.py` | 保留认证、STOP 与有界批次协议的 O_PATH 只读预检候选；2026-10-24 单端点试验未建立稳定端到端收益，已恢复原实现，未推广 |
+| `migration_probe_batch_parent.py` | P3 只读预检的批内父目录复用；仍逐文件 no-follow stat，不跨请求缓存描述符，不替代复制与内容校验；由身份与源码摘要绑定的单端点滚动工具部署 |
+| `migration_assigned_source_guard.py`、`prepare_assigned_source_guard.py` | 当前 warm 分配前缀的只读单链接 inode/路径对照；候选优化仅省去后续必被分配去重排除的源属性读取，不是复制成功或完整清单证明，正式扫描/哈希校验不启用 |
+| `migration_priority4_broker_sharded.py` | 尚未部署的 P4 分片 broker 候选；新运行标记按 64 路分散，旧租约沿用 SQLite 中的原路径；需要独立批准和交接，不是可重复执行的启动命令 |
+| `migration_source_tuning.py`、`experiment_source_limit.py` | 后台读取源读者派发预算；32/64 源端对照自动恢复自己的原预算，不改复制线程，不发进程信号 |
 | `migration_priority4_resume.py`、`migration_priority4_index_merge.py` | P4 同范围祖先回执恢复，以及带范围绑定的分批索引合并；保留已有索引行，不以原 eai_pwm 相对路径直接续接 P4 |
 | `migration_priority4_metadata.py`、`migration_priority4_file_metadata.py`、`migration_priority4_hardlink_proof.py` | P4 目录收尾、基于 FD 的普通文件元数据观测和当前硬链接内容/所有权证明；只读证明不等于发布或元数据验收完成 |
 | `migration_priority4_dependency_records.py`、`migration_priority4_process_observation.py` | P4 前置依赖的保存记录预检及只读进程证据；任何单项通过都不能授权启动 P4 |
@@ -91,7 +102,7 @@ NFS 上的 `rename`、`O_EXCL` 不用于跨节点任务竞争。broker 的 SQLit
 
 - 跨节点只读 target probe、producer 客户端及相关部署/观测脚本，缓解主节点集中检查目标元数据的压力。它们不替代复制后校验，也不扩大既有 probe 的路径范围。
 - cache age 的单节点、单 lane canary、空闲窗口检查、身份绑定和进程观测工具，例如 `rollout_cache_age.py`、`observe_cache_canary.py`、`inspect_cache_lane.py`。缓存刷新失败或超过配置的新鲜度仍停止领新任务；不能因代码目录出现这些脚本就推断所有节点已更换参数。
-- P4 独立组件、前置依赖记录/进程预检、硬链接当前内容与元数据联合证明、索引合并，以及相应本地与 Linux 集成 fixture。模块标注 `UNDEPLOYED` 的组件仍按候选代码理解；fixture 通过不等于完成生产交接或全量验收。
+- P4 独立组件、前置依赖记录/进程预检、硬链接当前内容与元数据联合证明、索引合并，以及相应本地与 Linux 集成 fixture。旧组件的 `UNDEPLOYED` 注释保留了当时的候选状态；2026-10-24 新协调器实际接入的扫描、worker、broker 和目录组件以冻结 bundle 与启动核验记录为准。未接入的额外证明/索引组件不能因此视为已部署；任何 fixture 或启动成功都不等于全量验收。
 - 控制队列只读目录观测与精确进程观测。错误必须保留，不能把无法读取的状态显示为零或“已排空”。
 
 这些新增内容描述的是归档中的能力与研究/验证过程。实际部署参数、当前入口和某项优化是否启用，仍以对应运行控制目录中的最新记录与实际进程为准。
@@ -124,6 +135,10 @@ python3 migration_progress.py --control <控制目录> --json
 python3 /share-mixed/project/.hcr-copy-monitor/progress.py --watch
 ```
 
+紧凑监控保留整体进度、复制速度与节点大表，并显示 P3 查漏的源遍历累计条目、目标预检累计次数/在途量，以及近 1/5 分钟的扫描速度和新增缺失量。源遍历计数属于当前扫描进程，目标预检累计包含交接历史；两者不能相加，也不代表唯一文件数。待扫总量未确定时不显示虚构百分比或 ETA。刚打开监控时速度需等待生产端的新检查点；过期检查点明确标记。发布新只读监控 bundle 后，已打开的旧 `--watch` 不会自动换代码；只需重新打开监控，不要重启复制。
+
+复制请求端的 `migration_run.BrokerClient` 修复了每次空轮询重复构建 urllib opener/HTTPS 证书环境的 CPU 开销：每线程独立复用 opener，不缓存响应，不关闭 TLS 校验，不改变原 1.5 秒空队列等待和回执重试。该修复需经过空闲交接后由新 worker 加载，修改仓库不会热改现有进程。`benchmark_idle_broker_client.py` 和 `prepare_idle_broker_validation.py` 仅做有界私有验证，不发送生产请求或启动复制。
+
 默认界面只显示整体进度和节点表：本次新复制、预检发现目标已存在，以及已入队待复制/确认的估算余量；整体进度内显示近 1 分钟、5 分钟的新复制完成与传输写入速度。速度按逻辑字节计量，样本不足或指标过期时会明确标注。存在检查次数不等于已核验的唯一文件数，已有目标的总字节数尚未记录；待处理量含在途及重试，计数快照不一致时显示“同步中”。这些分类不额外累加历史成功证据。使用 `--details` 查看阶段、历史索引、配置和后台任务，`--json` 保留完整机器可读状态。更新监控代码后，已打开的 `--watch` 需退出并重新执行，复制任务无需重启。
 
 监控的历史恢复量与本轮确认量可能重叠，不能相加。未完成全范围清点时，总规模只能是下限，不能给出完整百分比或准确 ETA。逻辑传输字节包含稀疏文件长度，不等于存储物理带宽。
@@ -135,7 +150,21 @@ python3 /share-mixed/project/.hcr-copy-monitor/progress.py --watch
 3. `/share/project/eai_pwm` 的其余内容，排除前两棵已覆盖子树。
 4. `/share/project` → `/share-mixed/project`，登记为后继范围；精确排除顶层 `eai_pwm`，复用前三项最终证据并避免重复计算。
 
-第四项的持久计划是 `extension-plan.json`。P4 的扫描、worker、broker、恢复、元数据及验证组件已经在库中，但它们仍不构成一个已经完成生产交接的独立协调器。是否已启动，应读取计划、最新实际状态及进程证据；不能由归档文件的存在推断。原 1–3 阶段引擎不能仅改源路径就直接执行第四项，P4 必须使用独立控制目录、阶段与索引，完成前置验收和幂等交接。没有 `/home` → `/home-mixed` 迁移任务。前三项完成不等于整个任务完成。
+第四项的持久计划是 `extension-plan.json`。2026-10-24 用户明确允许先验证隔离、再提前并行搬运 P4；新增独立协调器已经按此授权启动。它不把原前置验收伪造为完成：旧依赖和未使用的原 successor 保留，`parallel_execution` 单独记录新顺序、控制目录、隔离证据及监控 bundle。P1–3 的查漏、历史恢复及原复制进程继续运行。P4 使用自己的阶段、任务归档、本机索引、broker 端口及锁，不能只修改原引擎的源路径。是否正在运行，仍需读取最新实际状态与 PID/启动时刻/完整 argv。没有 `/home` → `/home-mixed` 迁移任务。任一独立范围完成都不等于整个任务验收完成。
+
+当前 P4 控制目录为 `/share-mixed/project/.hcr-copy-p4-20261024T015159Z-2dad-26b053`。每个物理节点另有 P4 的 64+64 线程；合并大表因此为每节点 256 线程，其中原 128 线程仍服务 P1–3。监控额外显示两套线程的分工，不应把 P1–3 查漏期间的等待误判为 P4 供给不足。原监控命令不变，已经打开的 `--watch` 需要退出后重新运行；不影响复制。
+
+2026-10-24 另行完成 P3 生产端的同轮交接：源读取器从 8 个改为 32 个，已完成输入池停止轮询，warm 周期性检查点改为 15 秒，并在完整排空/刷盘证据下保留扫描成果、按当前目录身份剪枝。原清单、任务编号、seed、索引及 P3/P4 复制进程保留。`migration_fast_cold_resume.py` 不是可在任意状态重跑的启动器；必须同时检查 `fast-p3-scan-…/cutover.json`、`successor-runtime.json` 及当前真实进程身份。其本机缓存不构成跨集群可直接使用的恢复检查点；正式轮次和最终验收仍需执行。
+
+当前 P3 入口为 `fast-p3-scan-466d08d7ea874d91a73534fb5caabac5/`，接续此前的 `fast-p3-scan-bafff405075e4089812c66f28c490004/`：目录分类、属性与安全打开也进入每个 reader 的有界 8 线程池，而不再只有文件 stat 并行。源进程池预置 64 个，派发上限经对照恢复为 32；降低上限只限制新目录，已经在途的目录自然结束，因此活跃读者可能暂时高于上限。预算位于当前 bundle 的 `reader-limit.json`，仅接受当前 control/run_id 的 `warm-source-reader-limit-v1`，范围 1–64；更新必须使用 `migration_io.read_json/write_json`，不能直接改旧 canonical JSON。后台读取失效或配置不合法时保持上次合法值，不阻塞主循环。它不是复制 worker 的线程设置。
+
+当前 warm 扫描还把已分配路径的排除前移到源属性读取之前：只对无歧义、历史单链接普通文件，在当前路径、inode、类型及 assigned 集合均匹配时省去完整 stat 和重复清单记录。父进程持有索引，子进程仅传回有界名称/身份页。这个计数不是复制成功或目标已存在的证据；warm 属性清单显式不完整，后续正式扫描仍读取完整属性。该次交接保留约 1.57 亿条旧扫描记录、274,083 个任务及全部 48 个复制进程，实际核验在当前 bundle 的 `verification.json`。扫描速率随目录组成变化，不能用 P4 的 GB/s 冒充 P3 提速。
+
+合并监控继续显示原复制速度，另在整体进度中分开显示 P3 的源条目/秒与目标预检/秒、活跃源读者和派发上限。已分配路径会跳过预检，这两个速率不能混用，也都不是唯一文件计数。源速率用 producer 的检查点时间而非 UI 刷新时间计算；重开 `--watch` 后需要两个源检查点才会出数，旧样本过期显示未知，不用零伪装停滞。
+
+P4 的生产端重启可从共享任务归档补发未派发任务，沿用任务 ID，并跳过已经分配的路径；不会删除租约或重置节点累计计数。若本机 broker 数据库丢失，当前启动器拒绝自行重建租约；需先完成显式的跨集群恢复。已有目标仍由原 SHA 校验内核复用，未持有所有权的冲突目标不会覆盖。P4 的两轮扫描、硬链接及目录元数据验收未结束前，不能把首次高速搬运当作完成。
+
+P4 broker 经单独授权已交接到 `broker-sharded-16b7938341ae4f669ce2413ff8dc77eb/`：只给新租约分片 running 标记、轮转 pending 分片，并省去已准备父目录的逐任务 mkdir。SQLite、端口 37654、旧租约的 owner/payload/路径、两套生产端及全部复制进程均保留。`deploy_sharded_broker.py --priority4` 必须绑定冻结的当前 broker 身份；不是可重复运行的重启命令，任何失败先检查一次性操作记录和实际 PID。部署证据位于该 bundle，整体迁移仍需原有正式扫描及收尾验收。
 
 ## 历史运维脚本
 
