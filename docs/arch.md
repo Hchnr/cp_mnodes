@@ -226,11 +226,11 @@ SHA、写入、目标复读和 `fsync` 都由同一个复制线程串行执行�
 
 ## 代码入口索引
 
-- producer 主循环：[migration_interleaved_target_filter.py](../migration_interleaved_target_filter.py)；发布：[migration_task_publisher.py](../migration_task_publisher.py)。
-- 源扫描：[migration_parallel_scan.py](../migration_parallel_scan.py)、[migration_process_scan.py](../migration_process_scan.py)；目标检查客户端：[migration_probe_processes.py](../migration_probe_processes.py)、[migration_distributed_target_filter.py](../migration_distributed_target_filter.py)。
-- broker：[migration_broker_parallel.py](../migration_broker_parallel.py)、[migration_broker_sharded.py](../migration_broker_sharded.py)、[migration_broker.py](../migration_broker.py)。
-- worker：[migration_run.py](../migration_run.py)、[migration_worker128_run.py](../migration_worker128_run.py)；文件操作：[migration_worker.py](../migration_worker.py)。
-- 缓存包装与刷新：[migration_cached_worker.py](../migration_cached_worker.py)、[migration_state_cache.py](../migration_state_cache.py)；probe：[migration_target_probe.py](../migration_target_probe.py)。
-- 恢复准备：[migration_prepared_resume.py](../migration_prepared_resume.py)；流水线收尾：[migration_pipeline_v2.py](../migration_pipeline_v2.py)；状态发布：[migration_io.py](../migration_io.py)。
+- producer 主循环：[migration_interleaved_target_filter.py](../src/discovery/migration_interleaved_target_filter.py)；发布：[migration_task_publisher.py](../src/discovery/migration_task_publisher.py)。
+- 源扫描：[migration_parallel_scan.py](../src/discovery/migration_parallel_scan.py)、[migration_process_scan.py](../src/discovery/migration_process_scan.py)；目标检查客户端：[migration_probe_processes.py](../src/discovery/migration_probe_processes.py)、[migration_distributed_target_filter.py](../src/discovery/migration_distributed_target_filter.py)。
+- broker：[migration_broker_parallel.py](../src/core/migration_broker_parallel.py)、[migration_broker_sharded.py](../src/core/migration_broker_sharded.py)、[migration_broker.py](../src/core/migration_broker.py)。
+- worker：[migration_run.py](../src/core/migration_run.py)、[migration_worker128_run.py](../src/core/migration_worker128_run.py)；文件操作：[migration_worker.py](../src/core/migration_worker.py)。
+- 缓存包装与刷新：[migration_cached_worker.py](../src/core/migration_cached_worker.py)、[migration_state_cache.py](../src/core/migration_state_cache.py)；probe：[migration_target_probe.py](../src/discovery/migration_target_probe.py)。
+- 恢复准备：[migration_prepared_resume.py](../src/recovery/migration_prepared_resume.py)；流水线收尾：[migration_pipeline_v2.py](../src/discovery/migration_pipeline_v2.py)；状态发布：[migration_io.py](../src/core/migration_io.py)。
 
 配置证据取 `CONTROL/config.json` 和 `state.json` 的 2026-10-22 10:53 UTC 快照；12 节点 probe 槽位取 `target-probe-batch-01c1939e33ac49398988e2378d8529d2/final-ready.json` 中的 health。CONTROL 为 `/share-mixed/project/.hcr-copy-20261021T141055Z-overlap-2db42a`，可变 JSON 必须经 `migration_io.read_json()` 读取。

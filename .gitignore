@@ -6,6 +6,7 @@ __pycache__/
 .ruff_cache/
 .venv/
 venv/
+.build/
 
 # Local copy-run state, credentials and logs (never source-controlled)
 *.sqlite*

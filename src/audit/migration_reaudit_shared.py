@@ -4,17 +4,34 @@ import json
 import os
 from pathlib import Path
 import time
+import uuid
 
 
 def read(path):
     path = Path(path)
+    absolute=path.absolute()
+    if str(absolute).startswith('/share/project/'):
+        raise ValueError('control reader must never pin a dataset file')
+    if str(absolute).startswith('/share-mixed/project/') and not absolute.parts[3].startswith('.hcr-'):
+        raise ValueError('only dedicated control artifacts may be pinned')
+    pins=path.parent/'.read-pins'
     for attempt in range(3):
+        pin=None
         try:
-            return json.loads(path.read_text())
+            # Keep an actual server-side link alive while reading. A renamed
+            # progress inode must not become an open-but-unlinked NFS handle.
+            pins.mkdir(mode=0o700,exist_ok=True)
+            pin=pins/(uuid.uuid4().hex+'.json')
+            os.link(path,pin,follow_symlinks=False)
+            return json.loads(pin.read_text())
         except FileNotFoundError:
             if attempt == 2:
                 raise
             os.listdir(path.parent)
+        finally:
+            if pin is not None:
+                try:pin.unlink()
+                except FileNotFoundError:pass
 
 
 def returned(record, result):

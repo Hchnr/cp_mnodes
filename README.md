@@ -4,16 +4,34 @@
 
 ## 仓库导航
 
-- [固定清单补拷（2026-10-25）](docs/fixed-manifest-copy.md)：当前只处理已核验的 4,412,943 个普通文件 / 3.773 TiB；不恢复旧扫描或全量队列，沿用原监控入口。
+- [目录结构与开发入口](docs/repository-layout.md)：源码分层、兼容运行包、测试和脚本调用方式。
+- [完整复查记录（2026-10-26）](docs/reaudit_20261026.md)：复查、增量闭合、补拷和安全交接的证据与边界；实际状态以共享控制目录为准。
+- [固定清单补拷（2026-10-25）](docs/fixed-manifest-copy.md)：历史固定批次 4,412,943 个普通文件 / 3.773 TiB，不代表当前全部任务范围。
 - [架构说明](docs/arch.md)：进程与线程职责、并发边界、任务和数据流。
 - [迁移进度报告（2026-10-22）](docs/report_20261022.md)：截至采样时刻的进度、1 PB 条件预测、瓶颈与对应改进。
 历史恢复供给入口为 `migration_interleaved_target_filter.py`：已发现候选和新扫描交错处理，并使用预备缓存避免完整历史重放。源目录遍历支持独立 spawn 进程，目标检查由多个客户端进程向 12 节点发送批量请求；路径预约与任务编号保持单一归属。训练守护可用运行配置 `training_watchdog_enabled=false` 显式禁用。运维脚本须绑定明确的进程身份与检查点，详见设计文档。
 
 - [设计文档](docs/design.md)：架构、断点续传、性能瓶颈与对应优化，以及仍需验证的边界。
-- `migration_*.py`：复制、扫描、协调、状态与观测模块；`test_*.py`：对应的本地测试。
+- `src/{core,discovery,recovery,audit,monitoring}/`：复制引擎、发现、恢复、复查和监控模块。
+- `ops/{deployment,diagnostics,benchmarks}/`：历史部署运维、诊断和性能实验。
+- `tests/`：按相同功能分类的回归测试；`tools/`：仓库构建和测试入口。
 - 历史 `deploy_*`、`start_*`、`rollout_*` 等脚本是运维记录，不是安全的通用启动入口；请先读下方“历史运维脚本”。
 
 本仓库只管理源码和文档。任务控制目录、回执、令牌、数据库、运行日志和测试临时目录均不纳入 Git。针对运行中的任务，先使用下方的只读监控命令；不要把 `git clone` 或 `git pull` 当作部署/重启操作。
+
+## 开发入口
+
+```bash
+# 查看文件名称及新位置（不会启动任何任务）
+python3 tools/repo.py list
+# 生成保持旧布局及源文件字节不变的独立运行包（不部署）
+python3 tools/repo.py build
+# 运行回归测试，或指定一个测试模块
+python3 tools/repo.py test
+python3 tools/repo.py test test_migration_reaudit_copy
+```
+
+文档中的 `migration_*.py`、`deploy_*.py` 等名称是运行包中的入口名称，不再是仓库根目录路径。显式执行方式为 `python3 tools/repo.py run ENTRY.py [参数]`，工作目录为新生成的运行包；外部路径参数请使用绝对路径。部署脚本可能修改远端状态，运行前必须阅读其约束；不要把帮助命令视为所有历史脚本的安全模式。已部署共享控制目录及其冻结代码不受仓库重组影响。
 
 2026-10-23 的小文件优化包括：已有目录 open-first；Linux `openat2` 严格拒绝全部祖先符号链接的单次父目录打开；可选的小文件预检下放。后者仅在连续真实缺失的目录内启用并定期复查，复制 worker 的已有目标校验、SHA、冲突保护与回执不变。委托候选不等于已证实目标缺失，须与 probe 健康信息中的实际采样分开计量。`deploy_directory_fastpath.py`、`rollout_native_parallel.py` 是需要显式旧 bundle、完整摘要及空闲交接证明的本次运维工具，不是通用启动器；详细边界和端到端采样见设计文档。
 
