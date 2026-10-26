@@ -81,5 +81,29 @@ class FinishTests(unittest.TestCase):
         self.assertTrue(value['enumeration_complete'])
         self.assertFalse(value['remote_process_states_observed'])
 
+    def test_control_read_pins_and_cleans_its_own_link(self):
+        path=self.root/'progress.json';path.write_text('{"value":123}')
+        self.assertEqual(shared.read(path),{'value':123})
+        self.assertEqual(list((self.root/'.read-pins').iterdir()),[])
+        self.assertEqual(path.stat().st_nlink,1)
+
+    def test_control_reader_refuses_dataset_paths(self):
+        for path in ['/share/project/eai_pwm/anything.json','/share-mixed/project/eai_pwm/anything.json']:
+            with self.assertRaises(ValueError):shared.read(path)
+
+    def test_replacement_during_read_keeps_old_inode_named(self):
+        path=self.root/'moving.json';path.write_text('{"epoch":1}')
+        original=Path.read_text
+        replaced=[False]
+        def racing_read(pin,*args,**kwargs):
+            if pin.parent.name=='.read-pins' and not replaced[0]:
+                replacement=self.root/'new.json';replacement.write_text('{"epoch":2}')
+                replacement.replace(path);replaced[0]=True
+                self.assertEqual(pin.stat().st_nlink,1)
+            return original(pin,*args,**kwargs)
+        with mock.patch.object(Path,'read_text',racing_read):
+            self.assertEqual(shared.read(path),{'epoch':1})
+        self.assertEqual(shared.read(path),{'epoch':2})
+
 
 if __name__=='__main__':unittest.main()

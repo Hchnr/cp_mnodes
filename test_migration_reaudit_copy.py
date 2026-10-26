@@ -1,9 +1,11 @@
 import json
+import gzip
 import os
 from pathlib import Path
 import stat
 import tempfile
 import unittest
+from unittest import mock
 
 import migration_reaudit_copy as copy
 
@@ -29,6 +31,32 @@ class CopyTests(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):copy.authority(self.root)
         self.assertFalse((self.root/'final').exists())
 
+    def test_explicit_start_is_bound_to_request_and_does_not_claim_full_completion(self):
+        final=self.root/'final';final.mkdir()
+        request=self.root/'explicit-copy-request.json'
+        request.write_text(json.dumps(dict(directive='开始拷贝吧，开大并发尽快完成')))
+        outputs={k:dict(sha256=k) for k in ('files','directories','symlinks')}
+        report=dict(status='verified_manifest_scope_only',source='/share/project',target='/share-mixed/project',
+                    exclusions=['eai_pwm/datasets/raw'],whole_tree_completion_proven=False,
+                    missing=dict(file=dict(paths=1,logical_bytes=10)),outputs=outputs)
+        path=final/'final-report.json';path.write_text(json.dumps(report))
+        auth=dict(kind='explicit-user-verified-scope-copy-v1',threshold_bytes_exclusive=copy.THRESHOLD,
+                  final_report_sha256=copy.base.digest(path),unresolved_access_errors=0,
+                  verified_path_manifest_only=True,explicit_user_request_sha256=copy.base.digest(request),
+                  ordinary_files=report['missing']['file'],outputs=outputs)
+        authority=final/'conditional-copy-authorization.json';authority.write_text(json.dumps(auth))
+        self.assertEqual(copy.authority(self.root)[2]['status'],'verified_manifest_scope_only')
+        request.write_text(json.dumps(dict(directive='not the authorized request')))
+        with self.assertRaises(ValueError):copy.authority(self.root)
+
+    def test_conditional_copy_cannot_use_partial_scope_status(self):
+        final=self.root/'final';final.mkdir()
+        report=final/'final-report.json';report.write_text(json.dumps(dict(status='verified_manifest_scope_only')))
+        (final/'conditional-copy-authorization.json').write_text(json.dumps(dict(
+            kind='full-reaudit-conditional-copy-v1',threshold_bytes_exclusive=copy.THRESHOLD,
+            final_report_sha256=copy.base.digest(report))))
+        with self.assertRaises(ValueError):copy.authority(self.root)
+
     def test_directory_capacity_is_not_inode_size(self):
         task=self.task()
         self.assertEqual(task['entry']['size'],0)
@@ -40,6 +68,34 @@ class CopyTests(unittest.TestCase):
         self.assertEqual(stat.S_IMODE((self.target/'a').stat().st_mode),0o750)
         resumed=copy.namespace_one(self.cfg,task,result)
         self.assertTrue(resumed['resumed'])
+
+    def test_namespace_checkpoint_carries_counts_without_recreating_old_directory(self):
+        tasks=[]
+        for i,name in enumerate(('first','second')):
+            path=self.source/name;path.mkdir()
+            row=dict(rel=name,kind='directory',source=copy.base.engine._record(path.stat()),reason='target_absent')
+            tasks.append(dict(id=i,entry=copy.namespace_entry(row)))
+        receipt=copy.namespace_one(self.cfg,tasks[0]);before=(self.target/'first').stat()
+        control=self.root/'checkpoint';folder=control/'nodes/node';folder.mkdir(parents=True)
+        shard=control/'shard.gz'
+        with gzip.open(shard,'wt') as stream:
+            for task in tasks:stream.write(json.dumps(task)+'\n')
+        (folder/'receipts-old.jsonl').write_text(json.dumps(receipt)+'\n')
+        cfg=dict(self.cfg,run_id='namespace-checkpoint-'+self.root.name,threads=1,
+                 shards=dict(node=dict(path=str(shard),files=2,bytes=0)))
+        (control/'config.json').write_text(json.dumps(cfg))
+        checkpoint=dict(status='stopped',active=0,submitted=1,
+                        counts=dict(processed=1,copied=1,completed_bytes=0,copied_bytes=0))
+        with mock.patch.object(copy.base,'validate_worker'),mock.patch.object(copy.base.signal,'signal'), \
+                mock.patch.object(copy.base,'validate_row',copy.validate_namespace_task), \
+                mock.patch.object(copy.base,'copy_one',wraps=copy.namespace_one) as worker:
+            copy.base.worker(control,'node',checkpoint=checkpoint)
+        self.assertEqual([call.args[1]['id'] for call in worker.call_args_list],[1])
+        final=copy.base.read_json(folder/'progress.json')
+        self.assertEqual(final['counts']['processed'],2)
+        self.assertEqual(final['counts']['copied'],2)
+        self.assertEqual((self.target/'first').stat().st_ctime_ns,before.st_ctime_ns)
+        self.assertTrue((self.target/'second').is_dir())
 
     def test_existing_directory_metadata_is_not_overwritten(self):
         task=self.task();(self.target/'a').mkdir(mode=0o700)

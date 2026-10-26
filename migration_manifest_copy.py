@@ -82,12 +82,13 @@ def validate_row(row):
     return dict(source, rel=rel, kind='file')
 
 
-def prepare(control, report, cluster, threads=64):
+def prepare(control, report, cluster, threads=64, verified_scope=False):
     """Stream once, prove ordered uniqueness, and freeze scope/code before start."""
     control, report = Path(control), Path(report)
     final = read_json(report)
     item = final['outputs']['files']
-    if (final['status'] != 'complete' or final['source'] != '/share/project'
+    required_status='verified_manifest_scope_only' if verified_scope else 'complete'
+    if (final['status'] != required_status or final['source'] != '/share/project'
             or final['target'] != '/share-mixed/project'
             or final['exclusions'] != [EXCLUDED]):
         raise ValueError('unexpected audited scope')
@@ -132,6 +133,8 @@ def prepare(control, report, cluster, threads=64):
                     emit()
                 if total % 500000 == 0:
                     print(json.dumps(dict(prepared_files=total, bytes=logical)), flush=True)
+                    atomic(control/'preparation-progress.json',dict(status='preparing',updated=time.time(),
+                        files=total,bytes=logical,expected_files=final['missing']['file']['paths']))
         emit()
     finally:
         for handle in handles.values():
@@ -262,7 +265,7 @@ def validate_worker(control, cfg, node):
             raise ValueError('an original unrestricted copy actor is no longer paused')
 
 
-def worker(control, node, limit=None, threads=None):
+def worker(control, node, limit=None, threads=None, checkpoint=None):
     control = Path(control).resolve()
     cfg = read_json(control / 'config.json')
     validate_worker(control, cfg, node)
@@ -279,9 +282,18 @@ def worker(control, node, limit=None, threads=None):
     if not 1 <= current_threads <= 256:
         raise ValueError('invalid threads')
     prior = load_receipts(folder)
+    prefix_tasks = prefix_bytes = 0
+    if checkpoint is not None:
+        from migration_reaudit_handoff import verify_prefix
+        verified = verify_prefix(cfg['shards'][node]['path'], prior, checkpoint)
+        prefix_tasks, prefix_bytes = verified['prefix_tasks'], verified['prefix_logical_bytes']
+        if limit is not None:
+            raise ValueError('checkpoint handoff must retain the complete shard scope')
     attempt = str(time.time_ns()) + '-' + uuid.uuid4().hex[:8]
     receipts = open(folder / ('receipts-' + attempt + '.jsonl'), 'x', buffering=262144)
     counts, samples, io_lock = collections.Counter(), collections.deque(), threading.Lock()
+    if checkpoint is not None:
+        counts.update(checkpoint['counts'])
     written = [0]
 
     def progress(delta):
@@ -296,7 +308,7 @@ def worker(control, node, limit=None, threads=None):
                  threads=current_threads, shard_files=cfg['shards'][node]['files'],
                  shard_bytes=cfg['shards'][node]['bytes'], limit=limit, attempt=attempt)
     atomic(folder / 'launch.json', dict(state, argv=sys.argv))
-    last_publish, pending, seen, size, last_stop_check = 0, {}, 0, 0, 0
+    last_publish, pending, seen, size, last_stop_check = 0, {}, prefix_tasks, prefix_bytes, 0
 
     def publish(status='copying', force=False):
         nonlocal last_publish
@@ -339,6 +351,9 @@ def worker(control, node, limit=None, threads=None):
     try:
         with gzip.open(cfg['shards'][node]['path'], 'rt', encoding='ascii') as stream, \
                 futures.ThreadPoolExecutor(max_workers=current_threads) as executor:
+            for _ in range(prefix_tasks):
+                if not stream.readline():
+                    raise ValueError('verified checkpoint prefix exceeds shard')
             exhausted = False
             while pending or not exhausted:
                 if not stop.is_set() and time.monotonic() - last_stop_check >= 3:

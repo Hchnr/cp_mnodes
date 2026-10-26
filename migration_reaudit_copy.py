@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Condition-bound isolated supplement: ordinary files plus missing namespace.
 
-Preparation REQUIRES a frozen final completion-audit authorization. No old
+Preparation REQUIRES a frozen, scope-bound authorization. Conditional startup
+requires completion audit; a separately bound explicit user start may copy the
+verified path manifest while whole-tree completion remains pending. No old
 queue is resumed. A local execution fallback is explicit, host+boot-bound and
 uses the same SHA/readback/fsync/no-replace file engine and shared receipts.
 """
@@ -32,16 +34,28 @@ def authority(root):
     path=root/'final/conditional-copy-authorization.json'
     auth=base.read_json(path)
     report_path=root/'final/final-report.json'
-    if auth.get('kind')!='full-reaudit-conditional-copy-v1' or auth.get('threshold_bytes_exclusive')!=THRESHOLD:
+    explicit=auth.get('kind')=='explicit-user-verified-scope-copy-v1'
+    if auth.get('kind') not in ('full-reaudit-conditional-copy-v1','explicit-user-verified-scope-copy-v1') or auth.get('threshold_bytes_exclusive')!=THRESHOLD:
         raise ValueError('missing exact conditional authorization')
     if base.digest(report_path)!=auth['final_report_sha256']:
         raise ValueError('completion report changed')
     report=base.read_json(report_path)
-    if (report['status']!='complete' or report['source']!='/share/project'
+    expected_status='verified_manifest_scope_only' if explicit else 'complete'
+    if (report['status']!=expected_status or report['source']!='/share/project'
             or report['target']!='/share-mixed/project' or report['exclusions']!=[base.EXCLUDED]):
         raise ValueError('final scope is not established')
-    if not auth.get('all_completion_gates_verified') or auth.get('unresolved_access_errors')!=0:
-        raise ValueError('unresolved completeness/access gates')
+    if explicit:
+        request_path=root/'explicit-copy-request.json'
+        request=base.read_json(request_path)
+        if (base.digest(request_path)!=auth.get('explicit_user_request_sha256')
+                or request.get('directive')!='开始拷贝吧，开大并发尽快完成'
+                or not auth.get('verified_path_manifest_only')
+                or report.get('whole_tree_completion_proven') is not False):
+            raise ValueError('explicit verified-scope authority differs')
+    elif not auth.get('all_completion_gates_verified'):
+        raise ValueError('unresolved completeness gates')
+    if auth.get('unresolved_access_errors')!=0:
+        raise ValueError('unresolved access gates')
     files=report['missing'].get('file',dict(paths=0,logical_bytes=0))
     if type(files['logical_bytes']) is not int or not 0<=files['logical_bytes']<THRESHOLD:
         raise ValueError('missing total is not strictly below 50 TB')
@@ -114,7 +128,8 @@ def prepare(root,control,kind,execution='local',threads=64):
         raise ValueError('independent shared fixed-manifest control required')
     auth_path,auth,report=authority(root)  # Must precede mkdir or any copy launch.
     if kind=='files':
-        cfg=base.prepare(control,root/'final/final-report.json',base.read_json(root/'plan.json')['cluster'],threads)
+        cfg=base.prepare(control,root/'final/final-report.json',base.read_json(root/'plan.json')['cluster'],threads,
+                         verified_scope=auth['kind']=='explicit-user-verified-scope-copy-v1')
         cfg['job_kind']='files'
     else:
         cfg=prepare_namespace(control,root,report,threads)

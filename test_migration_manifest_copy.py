@@ -117,6 +117,30 @@ class ManifestCopyTests(unittest.TestCase):
         self.assertEqual(subject.load_receipts(folder), {1: newer})
         self.assertTrue(a.read_bytes().endswith(b'{"id":'))
 
+    def test_checkpoint_retains_counts_and_never_dispatches_old_prefix(self):
+        first=self.task();second=self.task('b/file',data=b'next payload');second['id']=16
+        receipt=subject.copy_one(self.cfg,first)
+        control=self.root/'checkpoint';folder=control/'nodes'/'node';folder.mkdir(parents=True)
+        shard=control/'shard.gz'
+        with gzip.open(shard,'wt') as stream:
+            for task in (first,second):stream.write(json.dumps(task)+'\n')
+        (folder/'receipts-old.jsonl').write_text(json.dumps(receipt)+'\n')
+        cfg=dict(self.cfg,run_id='checkpoint-'+self.root.name,threads=1,
+                 shards=dict(node=dict(path=str(shard),files=2,bytes=first['entry']['size']+second['entry']['size'])))
+        (control/'config.json').write_text(json.dumps(cfg))
+        checkpoint=dict(status='stopped',active=0,submitted=1,
+                        counts=dict(processed=1,copied=1,completed_bytes=first['entry']['size'],copied_bytes=first['entry']['size']))
+        with mock.patch.object(subject,'validate_worker'),mock.patch.object(subject.signal,'signal'), \
+                mock.patch.object(subject,'copy_one',wraps=subject.copy_one) as copy:
+            subject.worker(control,'node',checkpoint=checkpoint)
+        self.assertEqual([call.args[1]['id'] for call in copy.call_args_list],[16])
+        final=subject.read_json(folder/'progress.json')
+        self.assertEqual(final['counts']['processed'],2)
+        self.assertEqual(final['counts']['copied'],2)
+        self.assertEqual(final['submitted'],2)
+        self.assertEqual(final['counts']['copied_bytes'],cfg['shards']['node']['bytes'])
+        self.assertEqual((folder/'receipts-old.jsonl').read_text(),json.dumps(receipt)+'\n')
+
     def fixture_report(self, rows):
         manifest = self.root / 'manifest.jsonl.gz'
         with gzip.open(manifest, 'wt', encoding='ascii') as stream:
@@ -157,6 +181,17 @@ class ManifestCopyTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             subject.prepare(control, report, 'test-cluster')
         self.assertFalse((control / 'config.json').exists())
+
+    def test_verified_scope_prepare_requires_explicit_opt_in(self):
+        task=self.task();report=self.fixture_report([dict(rel='fixture/a',kind='file',
+            reason='target_absent',source=task['entry'])])
+        value=json.loads(report.read_text());value['status']='verified_manifest_scope_only'
+        report.write_text(json.dumps(value))
+        with self.assertRaises(ValueError):subject.prepare(self.root/'denied',report,'test-cluster')
+        self.assertFalse((self.root/'denied').exists())
+        with mock.patch('builtins.print'):
+            cfg=subject.prepare(self.root/'allowed',report,'test-cluster',threads=128,verified_scope=True)
+        self.assertEqual(cfg['files'],1);self.assertEqual(cfg['threads'],128)
 
     def test_wrong_cluster_rejected_before_dataset_access(self):
         with self.assertRaisesRegex(ValueError, 'wrong cluster'):
