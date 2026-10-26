@@ -49,7 +49,7 @@ def load_checkpoint(control, cfg, handover):
     enabled = gc.isenabled()
     gc.disable()
     try:
-        with open(cache, 'rb') as stream:
+        with open(cache, 'rb', buffering=8*1024**2) as stream:
             cached = PrimitiveUnpickler(stream).load()
         task_ids = None
         if meta['version'] == 2:

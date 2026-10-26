@@ -18,7 +18,7 @@ import time
 import traceback
 
 from migration_io import read_json, write_json as atomic_json
-from migration_run import validate_mounts, process_entry, GOOD, TERMINAL, now
+from migration_run import validate_mounts, process_entry, GOOD, TERMINAL, now, BrokerClient
 from migration_worker import (configure_rate_limit, configure_cancel_event,
                               configure_progress_callback)
 
@@ -65,7 +65,6 @@ def worker(control, threads=64):
     # All queue ownership and completion writes belong to the broker. Shared
     # filesystem rename/O_EXCL did not provide exclusive claims on this mount.
     import urllib.parse
-    import urllib.request
 
     control = pathlib.Path(control)
     cfg, worker_rate, desired = supplement_config(control, require_primary=True)
@@ -95,8 +94,7 @@ def worker(control, threads=64):
                 'verified_files': previous.get('verified_files', 0),
                 'stages': dict(previous.get('stages', {})),
                 'broker_retries': previous.get('broker_retries', 0)}
-    broker_url = cfg['broker_url'].rstrip('/')
-    broker_token = cfg['broker_token']
+    broker_request = BrokerClient(cfg['broker_url'], cfg['broker_token']).request
     mutex = threading.Lock()
     stop = threading.Event()
     configure_cancel_event(stop)
@@ -107,20 +105,6 @@ def worker(control, threads=64):
         with mutex:
             progress['streamed_bytes'] += amount
     configure_progress_callback(streamed)
-
-    def broker_request(method, route, payload=None):
-        body = None if payload is None else json.dumps(payload, ensure_ascii=True).encode('utf-8')
-        request = urllib.request.Request(
-            broker_url + route, data=body, method=method,
-            headers={'Authorization': 'Bearer ' + broker_token,
-                     'Content-Type': 'application/json'})
-        # The broker is on the private node network, never an HTTP proxy.
-        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-        with opener.open(request, timeout=30) as response:
-            result = json.load(response)
-        if not isinstance(result, dict) or result.get('ok') is False:
-            raise ValueError('broker returned an invalid or rejected response')
-        return result
 
     def record_broker_error(operation, exc):
         with mutex:

@@ -210,18 +210,23 @@ class BrokerShardedTests(unittest.TestCase):
             write_json(fixture.pending(task_id), task)
         upgraded = fixture.open(candidate.Broker)
         first = upgraded.claim(STAGE, 'node-a-0')
-        self.assertEqual(first['task']['id'], 0)
+        first_id = first['task']['id']
+        self.assertEqual(first_id % 64, 0)
+        with upgraded.ready_lock:
+            cached = list(upgraded.ready[STAGE])[:3]
+        self.assertEqual([int(path.stem) % 64 for path in cached], [1, 2, 63])
         # Simulate an old NFS pending entry plus a candidate disappearing after
         # ready-cache enumeration; SQLite remains the assignment authority.
-        write_json(fixture.pending(0), fixture.tasks[0])
+        write_json(fixture.pending(first_id), fixture.tasks[first_id])
         fixture.pending(65).unlink()
         with upgraded.ready_lock:
-            upgraded.ready[STAGE].appendleft(fixture.pending(0))
+            upgraded.ready[STAGE].appendleft(fixture.pending(first_id))
         claims = [upgraded.claim(STAGE, 'node-a-' + str(i)) for i in range(1, 7)]
         selected = [first['task']['id']] + [claim['task']['id'] for claim in claims]
         self.assertEqual(set(selected), set(ids) - {65})
         self.assertEqual(len(selected), len(set(selected)))
-        self.assertEqual(selected[:4], [0, 1, 130, 191])
+        # READDIR order inside a shard is unspecified. Removing 65 may remove
+        # its first candidate, so the exact surviving sequence is not fixed.
         replay = upgraded.claim(STAGE, 'node-a-0')
         self.assertEqual(replay, first)
 

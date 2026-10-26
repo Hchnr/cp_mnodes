@@ -21,6 +21,17 @@ class ScanCancelled(RuntimeError):
     pass
 
 
+def _new_seen_paths():
+    """Key-only deduplication; never store mutable values or file evidence.
+
+    With ordinary string paths and None values, CPython leaves this dictionary
+    untracked by cyclic GC. Unlike a set growing to millions of paths, it need
+    not be traversed at every full collection. Membership/first-seen semantics
+    are unchanged; this is not a cache or permission to omit inventory work.
+    """
+    return {}
+
+
 def _seeded_nondirectory(child, path, seeded_paths):
     """Avoid re-statting replayed leaves, but never prune directory walks.
 
@@ -102,7 +113,11 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
                resume_records=None, skip_rel=None, seed_stats=None,
                skip_seeded_nondirectories=False, initial_seeded_paths=None,
                append_manifest=False, on_tick=None, processes=0,
-               threads_per_process=16, process_batch_size=256):
+               threads_per_process=16, process_batch_size=256,
+               completed_directories=None, expected_root_identity=None,
+               fast_directory_open=False, on_reader_progress=None,
+               parallel_directory_metadata=False, concurrency_limit=None,
+               assigned_source_guard=None):
     """Compatible scan_phase plus parallelism and explicit combined-manifest resume.
 
     resume_records must be complete parsed records from an older immutable
@@ -117,15 +132,48 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
     processes enables independent spawn-based readers, each using a bounded
     name/selection/metadata exchange. The seeded set stays in the caller and
     all manifest, hardlink and task callbacks retain their single owner.
+    completed_directories is an explicitly proven SAME-PASS, quiescent resume
+    optimization, not evidence that can be inferred from any arbitrary prefix.
+    It maps completed subtree roots to (dev, ino, mtime_ns, ctime_ns); readers
+    prune only matching current identities. It requires process readers, an
+    expected source-root identity and an explicitly prepared append inventory.
     """
     if phase not in PHASE_PATHS:
         raise ValueError('phase must be 1, 2, or 3')
     if min(batch_bytes, batch_files, workers, queue_size) < 1:
         raise ValueError('batch, worker and queue limits must be positive')
+    if (type(fast_directory_open) is not bool or type(parallel_directory_metadata) is not bool
+            or (on_reader_progress is not None and not callable(on_reader_progress))
+            or (concurrency_limit is not None and not callable(concurrency_limit))):
+        raise ValueError('invalid source reader acceleration options')
     if (not isinstance(processes, int) or not 0 <= processes <= 64
             or not isinstance(threads_per_process, int) or not 1 <= threads_per_process <= 128
             or not isinstance(process_batch_size, int) or not 1 <= process_batch_size <= 4096):
         raise ValueError('invalid process reader limits')
+    if completed_directories is not None:
+        if (not processes or initial_seeded_paths is None or not append_manifest
+                or resume_records is not None or seed_stats is None
+                or type(completed_directories) is not dict
+                or type(expected_root_identity) is not tuple
+                or len(expected_root_identity) != 2
+                or any(type(v) is not int for v in expected_root_identity)):
+            raise ValueError('directory pruning requires an explicit same-pass resume')
+    if assigned_source_guard is not None:
+        from migration_assigned_source_guard import AssignedSourceGuard
+        if (phase != 3 or not processes or not append_manifest
+                or not skip_seeded_nondirectories or completed_directories is None
+                or not isinstance(assigned_source_guard, AssignedSourceGuard)
+                or assigned_source_guard.assigned_paths is None):
+            raise ValueError('assignment metadata guard requires an explicit warm same-pass namespace scan')
+    if completed_directories is not None:
+        from migration_worker import _components
+        for rel, identity in completed_directories.items():
+            _components(rel)  # The source root is never itself pruned.
+            if (type(identity) is not tuple or len(identity) != 4
+                    or any(type(v) is not int for v in identity)):
+                raise ValueError('directory pruning requires complete identities')
+    elif expected_root_identity is not None:
+        raise ValueError('source checkpoint identity requires explicit completed directories')
     source_root = os.path.abspath(os.fspath(source_root))
     manifest_path = os.path.abspath(os.fspath(manifest_path))
     if os.path.commonpath((os.path.realpath(source_root), os.path.realpath(manifest_path))) == os.path.realpath(source_root):
@@ -144,7 +192,7 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
     if append_manifest and initial_seeded_paths is None:
         raise ValueError('append requires an explicitly prepared inventory')
     seeded_paths = set() if initial_seeded_paths is None else initial_seeded_paths
-    seen_paths = set()
+    seen_paths = _new_seen_paths()
     threads = []
     anchor = None
     process_metrics = None
@@ -305,8 +353,16 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
             try:
                 anchor = _open_root(source_root)
             except OSError as exc:
+                if completed_directories is not None:
+                    raise  # A failed resume must not append to its checkpoint.
                 scanner.error('', 'open_source_root', exc)
             source_dev = os.fstat(anchor).st_dev if anchor is not None else None
+            if completed_directories is not None:
+                if anchor is None:
+                    raise OSError(errno.ESTALE, 'checkpoint source root is unavailable')
+                actual_root = os.fstat(anchor)
+                if (actual_root.st_dev, actual_root.st_ino) != expected_root_identity:
+                    raise OSError(errno.ESTALE, 'checkpoint source root changed')
             original_root_dev = None
             if resume_records is not None:
                 last_seed_cancel_check = 0
@@ -327,12 +383,19 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
                     if key != 'phase' and key in seed_stats:
                         scanner.stats[key] = seed_stats[key]
             def consume(entry):
+                if (completed_directories is not None and entry.get('kind')=='error'
+                        and entry.get('rel') not in skipped):
+                    # A previously recorded directory can fail during the
+                    # resumed walk. Keep that failure visible; seeded paths
+                    # must never turn it into a successful empty subtree.
+                    _consume(scanner,entry)
+                    return
                 if (entry.get('rel') not in skipped and entry.get('rel') not in seeded_paths
                         and entry.get('rel') not in seen_paths
                         and (entry.get('rel'), entry.get('kind')) not in seeded_keys):
                     _consume(scanner, entry)
                     if entry.get('kind') != 'error':
-                        seen_paths.add(entry.get('rel'))
+                        seen_paths[entry.get('rel')] = None
             if anchor is not None:
                 fd = os.dup(anchor)
                 phase_rel = ''
@@ -363,7 +426,13 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
                                 skip_seeded_nondirectories=skip_seeded_nondirectories,
                                 processes=processes, threads_per_process=threads_per_process,
                                 batch_size=process_batch_size, queue_size=queue_size,
-                                check_cancel=check_process_cancel, on_tick=on_tick)
+                                check_cancel=check_process_cancel, on_tick=on_tick,
+                                completed_directories=completed_directories,
+                                fast_directory_open=fast_directory_open,
+                                on_reader_progress=on_reader_progress,
+                                parallel_directory_metadata=parallel_directory_metadata,
+                                concurrency_limit=concurrency_limit,
+                                assigned_source_guard=assigned_source_guard)
                         else:
                             schedule(phase_rel, os.fstat(fd))
                             for index in range(min(256, int(workers))):
@@ -402,6 +471,10 @@ def scan_phase(source_root, phase, emit_batch, manifest_path, *,
                     'workers': min(256, int(workers)), 'resumed_records': len(seeded_keys)}
             if process_metrics is not None:
                 result['process_readers'] = process_metrics
+            if assigned_source_guard is not None:
+                result.update(namespace_scan_complete=result['scan_complete'],
+                              metadata_inventory_complete=False,
+                              assignment_metadata_deferred=True)
             return result
         finally:
             stop.set()

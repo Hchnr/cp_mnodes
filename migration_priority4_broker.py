@@ -1,4 +1,4 @@
-# UNDEPLOYED CANDIDATE: independent P4 broker; not a complete P4 copy engine.
+# Independent P4 broker; launch only within its explicitly registered scope.
 #!/usr/bin/env python3
 """Compatible broker with local lease exclusion and independent NFS work.
 
@@ -46,6 +46,13 @@ class Broker(OriginalBroker):
         with self.locks_lock:
             return self.task_locks.setdefault((stage, task_id), threading.Lock())
 
+    def running_path(self, stage, owner, task_id):
+        return self.control / 'stages' / stage / 'running' / (
+            'broker--' + owner + '--' + str(task_id) + '.json')
+
+    def publish_json(self, path, value):
+        return atomic_json(path, value)
+
     def _state(self):
         with self.state_lock:
             if self.state_cache is None or time.monotonic() >= self.state_cache_until:
@@ -83,7 +90,7 @@ class Broker(OriginalBroker):
     def _publish_claim(self, running, task, pending, recover=False):
         with self.fs_slots:
             if not recover or not running.exists():
-                atomic_json(running, task)
+                self.publish_json(running, task)
             try:
                 pending.unlink()
             except FileNotFoundError:
@@ -146,8 +153,7 @@ class Broker(OriginalBroker):
                         raise ValueError('task payload does not match its priority4 stage')
                     payload = json.dumps(task, ensure_ascii=True)
                     lease = uuid.uuid4().hex
-                    running = self.control / 'stages' / stage / 'running' / (
-                        'broker--' + owner + '--' + str(task_id) + '.json')
+                    running = self.running_path(stage, owner, task_id)
                     state = self._state()
                     with self.lock:
                         if owner.rsplit('-', 1)[0] in self.draining_hosts:
@@ -210,7 +216,7 @@ class Broker(OriginalBroker):
                         result['status'] = 'copied'
                         result['bytes'] = previous.get('bytes', 0)
                         result['replay_reused_copy'] = True
-                atomic_json(target, receipt)
+                self.publish_json(target, receipt)
                 try:
                     pathlib.Path(row[2]).unlink()
                 except FileNotFoundError:

@@ -2,11 +2,46 @@
 
 本文只解释系统由哪些进程、线程和存储组成，它们如何协作，以及并发在哪里受到约束。进度、性能分析和完成预测见 [迁移报告](report_20261022.md)。
 
-以 2026-10-22 的优先级 3 恢复架构为主线。配置基线更新至**北京时间 18:53**：12 个物理节点、每节点 primary 64 路加 supplement 64 路；master 上 **8 个源目录读取子进程，每个 16 个元数据线程**，以及 **8 个检查客户端子进程，每个配置 64 个单项/回退线程**；检查批次最多 64 项，总在途最多 4096 项；8 个发布线程、64 个在途发布。12 个 probe 的已保存就绪记录均为 64 个文件系统操作槽、批次上限 64。
+## 当前模式：固定清单补拷（2026-10-26 核对）
+
+当前稳定监控入口的 `fixed-active.json` 已启用，选择 `/share-mixed/project/.hcr-copy-fixed-20261025T032630Z-2dad-72d05c`。本轮只消费已核验的 **4,412,943 个普通文件 / 4,148,614,479,512 字节**；这份分母属于固定清单，不代表历史全量迁移规模。更完整的边界见 [固定清单补拷](fixed-manifest-copy.md)。
+
+![当前固定清单补拷架构](figures/arch.svg)
+
+[SVG 矢量图](figures/arch.svg) · [PNG 高清图（3200 × 2600）](figures/arch.png) · [绘图源](figures/render_arch.py)
+
+### 角色、线程与并发
+
+| 角色 | 实现与并发 | 职责和状态归属 |
+| --- | --- | --- |
+| 清单准备 | `migration_manifest_copy.prepare()`，启动前执行 | 校验清单 SHA、唯一有序路径及总数；按字节和每文件固定成本生成 12 份互斥分片，冻结代码摘要。 |
+| 每节点主进程 | `migration_manifest_copy.worker()`，12 节点各 1 个 | 顺序读取自己的分片，提交至本地线程池；收集结果、追加回执、发布进度。没有中央 producer，也没有运行中跨节点抢占分片。 |
+| 每进程复制池 | 配置 64 线程，未收割 future 最多 64 个 | 全集群最多 **768 个复制工作槽**，与历史 primary/supplement 合计 1536 槽分开。每槽逐文件做源身份检查、复制、SHA/readback/fsync 和正式发布。 |
+| 回执与进度 | 主线程约每 3 秒 flush/fsync 回执、发布 progress | 逐文件回执在共享存储，每次尝试新建日志。重启重新核对成功回执的源/目标身份，不继承 `/tmp` 数据库作为进度。 |
+| 停止与互斥 | 主循环读取本轮 `stop.json`；每节点本地 flock | 停止新提交并等在途文件结束；防止同节点双启动，不自动重分配退出节点的分片。 |
+| 只读监控 | `migration_fixed_progress.py` 路由到冻结清单代码 | 读取本轮进度，保留原 `active.json`；显式 `--control` 可查看历史，不合并不同口径的分母。 |
+
+此模式没有目录发现、远端预检服务、中央任务文件发布或 broker HTTP 轮询。源和目标内容仍由执行节点直接读写；仅创建清单文件需要的父目录，祖先不跟随符号链接。源变化、消失、不同内容目标及读写错误均单独记录，不扩大到新的源版本或未列入文件。精确排除 `eai_pwm/datasets/raw`，不自动处理目录对象、符号链接、特殊文件和历史冲突。
+
+图源命令：`python3 docs/figures/render_arch.py --font /path/to/NotoSansCJKsc-Regular.otf`。SVG 使用矢量文字轮廓，不依赖阅读端字体。
+
+## 同期新增的独立范围与查漏架构
+
+固定清单模式之外，代码库也包含 P3 查漏和独立 P4 全量链路，它们有各自的控制目录与运行授权，不能混为一套 768 槽任务。
+
+- **P3 同轮续扫**：`migration_fast_cold_resume.py` 预加载源扫描/已分配检查点，追平清单尾部，保留原 producer 编号、索引、broker 与 worker 身份；`migration_scan_boundary.py`、`migration_unix_queues.py` 提供交接边界观测，准备检查点不等于可以跳过未完成扫描。
+- **独立 P4**：`migration_priority4_run.py` / `migration_priority4_fast_run.py` 配合 scope guard、独立索引、任务存档、broker 与复制进程，源为 `/share/project`，精确排除顶层 `eai_pwm`。新分片 broker 兼容已持久租约路径；不把 P3 相对路径索引直接接到 P4。源读者派发预算可热调，配置进程上限与实际工作进程数分开。
+- **只读查漏与补拷**：`migration_reaudit*.py` 将全树只读枚举、结果合并、差异审阅和补拷阶段分开；查漏命中或历史调度确认不是内容复制成功证明。固定清单补拷只接受审阅后冻结的输入。
+- **父目录与客户端优化**：批内父目录复用、openat2/O_PATH、nearest-parent 复制候选均需明确策略与交接；`BrokerClient` 复用线程私有 urllib opener，保留真实 claim/done、认证和不确定完成重试，不等于新增 TCP 长连接。
+- **合并监控**：`migration_parallel_progress.py` 对 P3/P4 分开计数、按共同窗口对齐速度；查漏计数与最近窗口新增缺失分开显示，没有可靠分母时不生成百分比或 ETA。固定清单由独立 monitor dispatch 路由。
+
+以下历史图继续用于解释 producer/broker 模型；当前模式应使用上方新图。不能仅由这些模块存在推断所有历史角色仍在运行。
+
+以下第 1–8 节保留 **2026-10-22 历史优先级 3 恢复架构**，不代表当前固定清单补拷模式。配置基线更新至**北京时间 18:53**：12 个物理节点、每节点 primary 64 路加 supplement 64 路；master 上 **8 个源目录读取子进程，每个 16 个元数据线程**，以及 **8 个检查客户端子进程，每个配置 64 个单项/回退线程**；检查批次最多 64 项，总在途最多 4096 项；8 个发布线程、64 个在途发布。12 个 probe 的已保存就绪记录均为 64 个文件系统操作槽、批次上限 64。
 
 这是配置和持久状态快照，不表示所有池始终满载。`state.supply_metrics` 已报告 8 个检查子进程 PID 和 8 个源读取进程的配置，producer 部署记录指向多进程入口；broker 分片属于代码支持的交接方案，是否实际切换须核对最新 broker 部署与进程，不能由脚本存在推断。
 
-## 1. 总体结构：控制任务与搬运内容分开
+## 1. 历史全量链路：控制任务与搬运内容分开
 
 系统中有三个不同角色：
 
@@ -20,16 +55,16 @@ producer 和 broker 都在 master，但它们是不同进程。master 自身也�
 
 下图使用原生矢量 SVG，PNG 为同一绘图源导出的高分辨率版本。框表示部署位置和进程边界，颜色区分协调、只读检查、文件复制与状态存储；连线标明批量 IPC、认证 HTTP、控制文件及直接文件读写。
 
-![多节点共享存储复制架构：多进程供给、唯一协调、分布式预检和复制执行](figures/arch.svg)
+![多节点共享存储复制架构：多进程供给、唯一协调、分布式预检和复制执行](figures/arch-legacy.svg)
 
-[打开 SVG 矢量图](figures/arch.svg) · [打开 PNG 高清图（3600 × 3160）](figures/arch.png)
+[打开 SVG 矢量图](figures/arch-legacy.svg) · [打开 PNG 高清图（3600 × 3160）](figures/arch-legacy.png)
 
 master 本身包含在 12 个复制/probe 节点内；图中只将其协调角色单独展开。控制目录与目标数据通常落在同一共享目标存储上，但职责不同。图中的辅助进程不是每个执行节点各启动一整套。
 
-图源为 [render_arch.py](figures/render_arch.py)，使用 matplotlib 绘制，SVG 的文字转为矢量轮廓，无需浏览端安装中文字体。重新生成：`python3 docs/figures/render_arch.py --font /path/to/NotoSansCJKsc-Regular.otf`。
+图源为 [render_arch.py](figures/render_arch_legacy.py)，使用 matplotlib 绘制，SVG 的文字转为矢量轮廓，无需浏览端安装中文字体。重新生成：`python3 docs/figures/render_arch_legacy.py --font /path/to/NotoSansCJKsc-Regular.otf`。
 ## 2. 主节点上的 producer：并行发现，单点决定
 
-当前恢复入口是 `migration_interleaved_target_filter.py`，它复用并行扫描、分布式目标检查和有界任务发布组件。它是一个协调进程，不是为每个复制节点各启动一个 producer。
+该历史恢复入口是 `migration_interleaved_target_filter.py`，它复用并行扫描、分布式目标检查和有界任务发布组件。它是一个协调进程，不是为每个复制节点各启动一个 producer。
 
 ### 2.1 主线程：唯一任务与状态所有者
 

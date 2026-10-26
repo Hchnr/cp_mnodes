@@ -13,6 +13,138 @@ import migration_progress as monitor
 from migration_io import write_json
 
 
+class SourceRateTests(unittest.TestCase):
+    def view(self,stamp,leaves,dirs,checked,handover='first'):
+        return dict(control='/fixture',foreground_handover=handover,recovery_warm=True,
+                    stage='p3-r3',scan_complete=False,source_state_updated=stamp,
+                    source_reader_progress=dict(leaf_names=leaves,directory_entries=dirs,error_entries=0,
+                                                processes=64,reader_limit=32),target_filter={'checked':checked})
+
+    def test_uses_producer_time_and_separates_source_entries_from_target_checks(self):
+        rate=monitor.SourceRate();a=self.view(100,100,20,10);rate.add(a,100)
+        b=self.view(160,700,80,310);rate.add(b,170)
+        self.assertEqual(b['source_rates']['1m']['source_per_second'],11)
+        self.assertEqual(b['source_rates']['1m']['checked_per_second'],5)
+        self.assertEqual(b['source_rates']['dispatch_limit'],32)
+        rate.add(b,171)
+        self.assertEqual(len(rate.samples),2)
+        self.assertEqual(b['source_rates']['1m']['source_per_second'],11)
+
+    def test_handover_resets_and_stale_samples_do_not_report_a_fresh_speed(self):
+        rate=monitor.SourceRate();rate.add(self.view(100,100,20,10),100)
+        b=self.view(160,700,80,310);rate.add(b,221)
+        self.assertIsNone(b['source_rates']['1m']['source_per_second'])
+        c=self.view(230,10,1,400,handover='second');rate.add(c,230)
+        self.assertEqual(len(rate.samples),1)
+        self.assertIsNone(c['source_rates']['1m']['checked_per_second'])
+        c['recovery_warm']=False;rate.add(c,240)
+        self.assertEqual(c['source_rates'],{})
+
+    def test_new_missing_is_window_delta_not_inherited_missing_total(self):
+        rate = monitor.SourceRate()
+        first = self.view(100, 100, 20, 1000)
+        first['target_filter']['missing'] = 59554089
+        rate.add(first, 100)
+        second = self.view(160, 700, 80, 1500)
+        second['target_filter']['missing'] = 59554089
+        rate.add(second, 160)
+        self.assertEqual(second['source_rates']['1m']['new_missing'], 0)
+        third = self.view(220, 1300, 140, 2000)
+        third['target_filter']['missing'] = 59554092
+        rate.add(third, 220)
+        self.assertEqual(third['source_rates']['1m']['new_missing'], 3)
+        self.assertEqual(third['source_rates']['5m']['new_missing'], 3)
+        rate.add(third, 281)
+        self.assertIsNone(third['source_rates']['1m']['new_missing'])
+
+    def test_regressed_missing_counter_resets_window_instead_of_reporting_negative_delta(self):
+        rate = monitor.SourceRate()
+        first = self.view(100, 100, 20, 1000)
+        first['target_filter']['missing'] = 500
+        rate.add(first, 100)
+        second = self.view(160, 700, 80, 1500)
+        second['target_filter']['missing'] = 1
+        rate.add(second, 160)
+        self.assertEqual(len(rate.samples), 1)
+        self.assertIsNone(second['source_rates']['1m']['new_missing'])
+
+
+class ScanProgressTests(unittest.TestCase):
+    def view(self):
+        return dict(recovery_warm=True, stage='p3-r3', status='scanning',
+            scan_complete=False, source_state_updated=100,
+            source_reader_progress=dict(leaf_names=1000, directory_entries=200,
+                error_entries=3, skipped_assigned_leaves=600,
+                skipped_seeded_leaves=10, pruned_completed_directories=90),
+            target_filter=dict(checked=9000000, missing=1000000, inflight=24))
+
+    def test_source_and_target_scopes_stay_separate_and_denominator_is_unknown(self):
+        result = monitor.scan_progress(self.view())
+        self.assertEqual(result['source_entries'], 1203)
+        self.assertEqual(result['target_checked'], 9000000)
+        self.assertEqual(result['historical_and_current_missing'], 1000000)
+        self.assertEqual(result['pruned_completed_directories'], 90)
+        for field in ('total_entries', 'percent', 'eta_seconds'):
+            self.assertIsNone(result[field])
+
+    def test_missing_source_counters_are_unknown_not_zero(self):
+        view = self.view()
+        del view['source_reader_progress']['error_entries']
+        result = monitor.scan_progress(view)
+        self.assertIsNone(result['source_entries'])
+        self.assertIsNone(result['source_errors'])
+        self.assertEqual(result['target_inflight'], 24)
+
+    def test_first_frame_has_progress_without_rate_history_or_monitor_warmup(self):
+        with mock.patch.object(monitor.time, 'time', return_value=110):
+            text = '\n'.join(monitor.scan_progress_lines(self.view()))
+        self.assertIn('P3 查漏进度：扫描中', text)
+        self.assertIn('1,203 条目', text)
+        self.assertIn('9,000,000 次', text)
+        self.assertIn('检查点年龄 10s', text)
+        self.assertIn('90 个', text)
+        self.assertIn('采样中/未知', text)
+        self.assertNotIn('1,000,000', text)
+        self.assertIn('完成百分比/剩余时间未知', text)
+
+    def test_rates_show_zero_new_missing_without_claiming_zero_checks(self):
+        view = self.view()
+        view['source_rates'] = dict(unit='条目', **{
+            key: dict(seconds=60, source_per_second=3000,
+                      checked_per_second=2800, new_missing=0) for key in ('1m', '5m')})
+        with mock.patch.object(monitor.time, 'time', return_value=110):
+            text = '\n'.join(monitor.scan_progress_lines(view))
+        self.assertIn('3,000', text)
+        self.assertIn('2,800', text)
+        self.assertIn('新发现缺失', text)
+        self.assertNotIn('采样中', text)
+        self.assertNotIn('1,000,000', text)
+
+    def test_stale_producer_is_not_hidden_by_a_fresh_aggregate_or_speed(self):
+        view = self.view()
+        view.update(updated=200, source_rates={
+            '1m': dict(seconds=60, source_per_second=3000, checked_per_second=2800, new_missing=0)})
+        with mock.patch.object(monitor.time, 'time', return_value=200):
+            text = '\n'.join(monitor.scan_progress_lines(view))
+        self.assertIn('检查点年龄 100s', text)
+        self.assertIn('已过期', text)
+        self.assertNotIn('3,000', text)
+
+    def test_enumeration_complete_and_paused_are_not_reported_as_actively_scanning(self):
+        view = self.view()
+        view['scan_complete'] = True
+        self.assertEqual(monitor.scan_progress(view)['status'], 'enumeration_complete')
+        view.update(scan_complete=False, status='producer_paused')
+        self.assertEqual(monitor.scan_progress(view)['status'], 'paused')
+
+    def test_other_stages_do_not_display_old_p3_scan_counters(self):
+        view = self.view()
+        view['stage'] = 'p1-r1'
+        self.assertEqual(monitor.scan_progress_lines(view), [])
+        view.update(stage='p3-r3', recovery_warm=False)
+        self.assertEqual(monitor.scan_progress(view), {})
+
+
 class ProbeBaselineProgressTests(unittest.TestCase):
     """Small local JSON fixtures only; no queues, manifests or remote reads."""
 
@@ -65,6 +197,15 @@ class ProbeBaselineProgressTests(unittest.TestCase):
         self.assertFalse(view['copy_work_progress']['existing_checks_lower_bound'])
         self.assertFalse(view['warnings'])
         self.assertNotIn('old-handover.json', [Path(call.args[0]).name for call in read.call_args_list])
+
+    def test_cumulative_scan_handover_does_not_add_the_old_probe_total_again(self):
+        self.bundle_records()
+        self.state['target_probe_counts_scope'] = 'cumulative-across-producer-handover'
+        self.state['distributed_target_probe']['counts']['remote_existing'] = 5400017
+        view = self.snapshot()
+        self.assertIsNone(view['distributed_target_probe_baseline'])
+        self.assertEqual(view['copy_work_progress']['existing_checks'],5400017)
+        self.assertFalse(view['warnings'])
 
     def test_inventory_replay_is_not_labelled_as_active_copy_supply(self):
         self.state['recovery_replay'] = {'phase': 'inventory_replay', 'seeded_records': 12}

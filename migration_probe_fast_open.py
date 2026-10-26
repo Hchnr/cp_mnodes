@@ -37,8 +37,8 @@ def runtime_policy(path, controller):
     return read_json(path)
 
 
-def main():
-    install()
+def main(*, installer=None):
+    (install if installer is None else installer)()
     reloader = None
     policy_path = Path(__file__).resolve().parent / 'probe-policy.json'
     if policy_path.is_file():
