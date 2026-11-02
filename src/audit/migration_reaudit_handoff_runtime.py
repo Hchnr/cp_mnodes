@@ -43,25 +43,49 @@ def validate_approval(approval, control, node):
         raise ValueError('explicit sequential namespace approval differs')
 
 
+def validate_file_approval(approval, control, node, target):
+    nodes = ['master-0'] + ['worker-'+str(i) for i in range(11)]
+    expected = [dict(control=str(control), node=n, target_node='worker-'+str(i+11))
+                for i,n in enumerate(nodes)]
+    if (approval.get('kind') != 'explicit-24-node-host-migration-v1'
+            or approval.get('directive') != '24节点已经可以连接，没问题的就把任务迁移到24个节点'
+            or approval.get('allowed') != expected or approval.get('sequential') is not True
+            or dict(control=str(control),node=node,target_node=target) not in expected):
+        raise ValueError('explicit file shard/receiver approval differs')
+
+
+def validate_coverage(cfg, report, file_handoff):
+    if file_handoff:
+        expected=report['missing']['file']
+        if cfg['files']!=expected['paths'] or cfg['bytes']!=expected['logical_bytes']:
+            raise ValueError('file coverage differs')
+    elif cfg['files']!=sum(report['outputs'][k]['rows'] for k in ('directories','symlinks')) or cfg['bytes']!=0:
+        raise ValueError('namespace coverage differs')
+
+
 def validate(plan_path,receiver):
     plan_path=Path(plan_path).resolve();plan=base.read_json(plan_path)
     control=Path(plan['control']).resolve();bundle=Path(__file__).resolve().parent
-    if plan['kind']!='single-namespace-shard-host-handoff-v1':raise ValueError('wrong handoff kind')
+    file_handoff=plan['kind']=='single-file-shard-host-handoff-v1'
+    if not file_handoff and plan['kind']!='single-namespace-shard-host-handoff-v1':raise ValueError('wrong handoff kind')
     if plan_path.parent!=control/'handoffs'/plan['node']:raise ValueError('foreign handoff plan')
     cfg=base.read_json(control/'config.json');ready=base.read_json(control/'ready.json')
     if not (base.digest(control/'config.json')==ready['config_sha256']==plan['config_sha256']):
         raise ValueError('original configuration changed')
-    if cfg['job_kind']!='namespace' or cfg['execution_mode']!='local':raise ValueError('only local namespace pilot allowed')
+    if cfg['job_kind']!=('files' if file_handoff else 'namespace') or cfg['execution_mode']!='local':
+        raise ValueError('handoff kind or original execution mode differs')
     if (plan['source_host'],plan['source_boot'])!=(cfg['execution_host'],cfg['execution_boot_id']):
         raise ValueError('source binding differs')
     actual=identity()
     expected=(plan['receiver_host'],plan['receiver_boot']) if receiver else (plan['source_host'],plan['source_boot'])
     if (actual['host'],actual['boot'])!=expected:raise ValueError('handoff host/boot differs')
-    if plan['receiver_host']!='job-'+cfg['cluster']+'-'+plan['node']:raise ValueError('wrong remote cluster/node')
+    target=plan['target_node'] if file_handoff else plan['node']
+    if plan['receiver_host']!='job-'+cfg['cluster']+'-'+target:raise ValueError('wrong remote cluster/node')
     approval=base.read_json(plan['approval'])
     if base.digest(plan['approval'])!=plan['approval_sha256']:
         raise ValueError('user approval digest differs')
-    validate_approval(approval,control,plan['node'])
+    if file_handoff:validate_file_approval(approval,control,plan['node'],target)
+    else:validate_approval(approval,control,plan['node'])
     if cfg['source']!='/share/project' or cfg['target']!='/share-mixed/project' or cfg['excluded']!=[base.EXCLUDED]:
         raise ValueError('source/target scope differs')
     for key in ('source','target'):
@@ -70,8 +94,7 @@ def validate(plan_path,receiver):
     path,auth,report=entry.authority(cfg['audit_root'])
     if str(path)!=cfg['authorization'] or base.digest(path)!=cfg['authorization_sha256']:
         raise ValueError('original authorization changed')
-    if cfg['files']!=sum(report['outputs'][k]['rows'] for k in ('directories','symlinks')) or cfg['bytes']!=0:
-        raise ValueError('namespace coverage differs')
+    validate_coverage(cfg,report,file_handoff)
     if set(cfg['code'])!=set(entry.CODE):raise ValueError('incomplete original bundle')
     for name,checksum in cfg['code'].items():
         if base.digest(control/'code'/name)!=checksum:raise ValueError('original code changed')
@@ -122,7 +145,8 @@ def receiver(plan_path):
             raise ValueError('receiver assigned scope differs')
         validate(plan_path,True)
     base.validate_worker=validator
-    base.validate_row=entry.validate_namespace_task;base.copy_one=entry.namespace_one
+    if cfg['job_kind']=='namespace':
+        base.validate_row=entry.validate_namespace_task;base.copy_one=entry.namespace_one
     base.atomic(folder/'receiver-state.json',dict(status='copying_verified_suffix',identity=who,updated=time.time(),prefix=prefix))
     base.worker(control,plan['node'],checkpoint=old)
     base.atomic(folder/'receiver-state.json',dict(status='receiver_returned',identity=who,updated=time.time()))

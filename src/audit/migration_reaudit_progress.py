@@ -23,6 +23,11 @@ def namespace_postcheck_progress(control,control_read):
         except FileNotFoundError:
             states['no_report']+=1;continue
         status=value['status']
+        if status in ('original_actor_replaced_or_handed_off','original_actor_exited_without_full_shard'):
+            try:ack=control_read(control/'handoffs'/actor['node']/'rollout-ack.json')
+            except FileNotFoundError:ack={}
+            if ack.get('source_terminal') and ack.get('prefix',{}).get('exact_prefix_receipt_coverage'):
+                states['handed_off']+=1;continue
         key=('returned' if status.startswith('closed_namespace_') else
              'checking' if status=='checking' else
              'waiting' if status=='waiting_for_actual_original_exit' else 'attention')
@@ -30,6 +35,15 @@ def namespace_postcheck_progress(control,control_read):
     print('目录本地收尾复核：等待退出 {}，核验中 {}，已返回 {}/{}，需检查 {}；返回不等于全部通过。'.format(
         states['waiting'],states['checking'],states['returned'],len(launch['watchers']),
         states['attention']+states['no_report']))
+    if states['handed_off']:
+        print('  已证实交接 {} 路，后续核验改由远端观察器负责；不计为核验通过。'.format(states['handed_off']))
+
+
+def execution_node(cfg,value):
+    host=value.get('host','未知')
+    if host==cfg.get('execution_host'):return '开发机'
+    prefix='job-'+cfg.get('cluster','')+'-'
+    return host[len(prefix):] if host.startswith(prefix) else host
 
 
 def copy_progress(controls,control_read):
@@ -77,6 +91,17 @@ def copy_view(root,report,control_read):
                 copy_launch_in_progress='启动复制进程',copy_running='搬运中')
     print('状态：'+phases.get(state['status'],state['status']))
     controls=state.get('controls',{});copy_progress(controls,control_read)
+    if controls.get('files'):
+        try:
+            rollout=control_read(Path(controls['files'])/'file-rollout-24-v1/progress.json')
+            phases=dict(waiting_for_namespace_handoffs='等待目录交接结束',validating_remote='校验远端',
+                staging_receiver='准备接收进程',draining_one_source='排空当前文件分片',
+                verifying_receiver='核对累计计数',one_shard_handed_off='分片已接续',
+                all_handed_off='全部已接续',inspection_required='暂停，待检查')
+            print('普通文件远端交接：{}/12；{} → {}；{}；沿用原分片和累计计数。'.format(
+                len(rollout['completed']),rollout.get('node') or '—',rollout.get('target_node') or '—',
+                phases.get(rollout['status'],rollout['status'])))
+        except FileNotFoundError:pass
     try:
         runtime=control_read(root/'final/incremental-namespace-closure/runtime-progress.json')
         try:proof=control_read(root/'final/incremental-namespace-closure/verified/report.json')
@@ -181,13 +206,13 @@ def copy_view(root,report,control_read):
     folder=Path(controls['files'])
     try:cfg=control_read(folder/'config.json')
     except FileNotFoundError:return
-    print('\n逻辑分片（本机执行） | 在途任务 | 新复制 GiB | 已处理/总文件 | 状态 | 心跳')
+    print('\n逻辑分片 → 执行节点 | 在途任务 | 新复制 GiB | 已处理/总文件 | 状态 | 心跳')
     for node,shard in cfg['shards'].items():
         try:value=control_read(folder/'nodes'/node/'progress.json')
         except FileNotFoundError:
             print('{} | - | - | 0/{:,} | 等待启动 | -'.format(node,shard['files']));continue
         c=value['counts'];age=time.time()-value['updated']
-        print('{} | {} | {:.1f} | {:,}/{:,} | {} | {:.0f}s'.format(node,
+        print('{} → {} | {} | {:.1f} | {:,}/{:,} | {} | {:.0f}s'.format(node,execution_node(cfg,value),
             value.get('active',0) if age<30 else '-',c.get('copied_bytes',0)/1024**3,
             c.get('processed',0),shard['files'],value['status'],age))
 

@@ -4,10 +4,29 @@ import time
 import unittest
 from pathlib import Path
 
-from migration_reaudit_progress import copy_progress, copy_view,namespace_postcheck_progress
+from migration_reaudit_progress import copy_progress, copy_view,namespace_postcheck_progress,execution_node
 
 
 class ProgressTests(unittest.TestCase):
+    def test_physical_receiver_not_confused_with_logical_shard(self):
+        cfg=dict(execution_host='dev',cluster='cluster')
+        self.assertEqual(execution_node(cfg,dict(host='dev')),'开发机')
+        self.assertEqual(execution_node(cfg,dict(host='job-cluster-worker-22')),'worker-22')
+        self.assertEqual(execution_node(cfg,dict(host='foreign')),'foreign')
+
+    def test_proven_handoff_not_reported_as_local_audit_failure(self):
+        root=Path('/fixture')
+        records={root/'original-postcheck-watchers-v2/launch-results.json':dict(watchers=[dict(node='worker-1')]),
+            root/'nodes/worker-1/post-copy-audit-original/result.json':dict(status='original_actor_exited_without_full_shard'),
+            root/'handoffs/worker-1/rollout-ack.json':dict(source_terminal=True,prefix=dict(exact_prefix_receipt_coverage=True))}
+        def read(path):
+            if path not in records:raise FileNotFoundError(path)
+            return records[path]
+        output=io.StringIO()
+        with contextlib.redirect_stdout(output):namespace_postcheck_progress(root,read)
+        self.assertIn('已返回 0/1，需检查 0',output.getvalue())
+        self.assertIn('已证实交接 1 路',output.getvalue())
+
     def test_namespace_handoff_is_attention_not_successful_postcheck(self):
         root=Path('/fixture')
         records={root/'original-postcheck-watchers-v2/launch-results.json':dict(watchers=[dict(node='worker-1')]),
