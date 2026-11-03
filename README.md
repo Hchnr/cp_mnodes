@@ -20,6 +20,17 @@
 
 本仓库只管理源码和文档。任务控制目录、回执、令牌、数据库、运行日志和测试临时目录均不纳入 Git。针对运行中的任务，先使用下方的只读监控命令；不要把 `git clone` 或 `git pull` 当作部署/重启操作。
 
+## projset 独立复制与分析入口
+
+- [projset 工具说明](ops/copy/README.md)：独立16入口复制、冻结运行代码、冲突保护和开发验证。
+- [当前复制执行记录](docs/operations/projset-copy-20261102.md)：路径范围、逐文件校验及运行证据。
+- [SwanLab 全部图表说明](docs/operations/projset-swanlab-charts.md)：两分钟上报、TB单位和总览口径。
+- [跳过与异常清单说明](docs/operations/projset-copy-outcomes.md)：成功复用、冲突、源变化和错误的逐路径导出；报告刷新不触发重拷。
+- [分析报告索引](docs/analysis/README.md)：历史空间分布、数据集重叠和压缩包检查。
+- [PR说明索引](docs/pull-requests/README.md)：本次中英文原始Markdown及历史说明。
+
+实时控制目录、`runs/`、凭据、日志、回执和本地编辑器设置不提交。已有运行目录保持原路径；源码整理不会热改正在运行的冻结代码。
+
 ## 开发入口
 
 ```bash
