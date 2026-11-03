@@ -11,6 +11,8 @@ cp_mnodes/
 │   ├── audit/         # 固定清单复查、补拷核验与目录交接
 │   └── monitoring/    # 状态、吞吐、报告与观测
 ├── ops/
+│   ├── copy/         # projset 独立复制与 SwanLab 上报
+│   ├── analysis/     # 只读数据集与压缩包分析
 │   ├── deployment/   # 历史部署、准备、滚动交接与收尾脚本
 │   ├── diagnostics/  # 检查、观察与诊断脚本
 │   └── benchmarks/   # 性能实验和 Linux 集成夹具
@@ -57,3 +59,11 @@ python3 -m unittest discover -s tools -p 'test_*.py'
 - 运维脚本有实际状态变更风险，目录名称不构成安全承诺；必须检查脚本和参数。
 - 不在源码目录保存控制状态、数据、凭据、运行日志或回执。
 - 这次重组不修改冻结的运行侧代码，不重新派发任务，不重启复制。
+
+## 报告和运行产物
+
+`docs/analysis/` 保存有日期和口径说明的静态报告；分析源码归 `ops/analysis/`，私有夹具测试归 `tests/audit/`。大清单使用可复现gzip归档，并由 `MANIFEST.json` 记录压缩前后SHA-256；分析器直接流式读取压缩CSV。
+
+`docs/pull-requests/` 保存可直接粘贴的中英文PR说明，旧说明归入 `archive/`。`runs/` 是本机共享运行证据，不纳入Git，也不因仓库整理删除。报告中指向 `runs/` 的链接仅在对应执行环境可用。
+
+新增projset测试同时支持源码目录和任意位置的平铺运行包。SwanLab仅在运行独立上报器时才需要对应SDK，复制核心和私有目录测试保持标准库依赖。

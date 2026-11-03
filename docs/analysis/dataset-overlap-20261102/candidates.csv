@@ -1,0 +1,783 @@
+﻿match_type,group,path,root,stage,live,logical_bytes,regular_file_paths,size_basis
+same_name,RoboMIND,/share-mixed/project/eai_pwm/datasets/RoboMIND,project,数据集（格式未核验）,nonempty,11838096777545,1403,full_20261027
+same_name,RoboMIND,/share-mixed/projset/eai_pwm/datasets/RoboMIND,projset,数据集（格式未核验）,nonempty,11838096777545,1403,full_20261027
+same_name,ego_exo4d,/share-mixed/project/yhzhang/data/ego_exo4d,project,数据集（格式未核验）,nonempty,25879526208197,202230,full_20261027
+same_name,ego_exo4d,/share-mixed/projset/eai_pwm/datasets/Ego-Exo4D,projset,数据集（格式未核验）,nonempty,10715144279936,205787,full_20261027
+same_name,OpenNeoData_20260915,/share-mixed/project/eai_pwm/datasets/OpenNeoData_20260915,project,数据集（格式未核验）,nonempty,9065374857309,78290,full_20261027
+same_name,OpenNeoData_20260915,/share-mixed/projset/eai_pwm/datasets/tactile/OpenNeoData_20260915,projset,数据集（格式未核验）,nonempty,9069946921682,78322,full_20261027
+same_name,RoboMIND2.0-Franka-Part-1,/share-mixed/project/eai_pwm/datasets/RoboMIND2.0-Franka-Part-1,project,数据集（格式未核验）,nonempty,1066878765282,8715,full_20261027
+same_name,RoboMIND2.0-Franka-Part-1,/share-mixed/projset/eai_pwm/datasets/RoboMIND2.0-Franka-Part-1,projset,数据集（格式未核验）,nonempty,9567704417903,18686,full_20261027
+same_name,RoboMIND2.0-Franka-Part-2,/share-mixed/project/eai_pwm/datasets/RoboMIND2.0-Franka-Part-2,project,数据集（格式未核验）,nonempty,732865115594,7742,full_20261027
+same_name,RoboMIND2.0-Franka-Part-2,/share-mixed/projset/eai_pwm/datasets/RoboMIND2.0-Franka-Part-2,projset,数据集（格式未核验）,nonempty,9810140847089,22049,full_20261027
+same_name,RoboMIND2.0-Franka-Part-3,/share-mixed/project/eai_pwm/datasets/RoboMIND2.0-Franka-Part-3,project,数据集（格式未核验）,nonempty,688323169232,8370,full_20261027
+same_name,RoboMIND2.0-Franka-Part-3,/share-mixed/projset/eai_pwm/datasets/RoboMIND2.0-Franka-Part-3,projset,数据集（格式未核验）,nonempty,13899908467042,38792,full_20261027
+same_name,RoboMIND2.0-Franka-Part-4,/share-mixed/project/eai_pwm/datasets/RoboMIND2.0-Franka-Part-4,project,数据集（格式未核验）,nonempty,639338212084,5805,full_20261027
+same_name,RoboMIND2.0-Franka-Part-4,/share-mixed/projset/eai_pwm/datasets/RoboMIND2.0-Franka-Part-4,projset,数据集（格式未核验）,nonempty,8691876030362,16127,full_20261027
+same_name,RoboMIND2.0-Franka-Part-5,/share-mixed/project/eai_pwm/datasets/RoboMIND2.0-Franka-Part-5,project,数据集（格式未核验）,nonempty,565071760202,5164,full_20261027
+same_name,RoboMIND2.0-Franka-Part-5,/share-mixed/projset/eai_pwm/datasets/RoboMIND2.0-Franka-Part-5,projset,数据集（格式未核验）,nonempty,8901613079108,17204,full_20261027
+same_name,TACO,/share-mixed/project/eai_pwm/datasets/TACO,project,数据集（格式未核验）,nonempty,1027590274280,33,full_20261027
+same_name,TACO,/share-mixed/project/gz/data/tac_data/TACO,project,数据集（格式未核验）,nonempty,326153673709,603994,full_20261027
+same_name,OpenNeoData_action_20261025_v1,/share-mixed/project/eai_pwm/datasets/tactile/OpenNeoData_action_20261025_v1,project,数据集（格式未核验）,nonempty,248117417597,7095,full_20261027
+same_name,OpenNeoData_action_20261025_v1,/share-mixed/projset/eai_pwm/datasets/tactile/OpenNeoData_action_20261025_v1,projset,数据集（格式未核验）,nonempty,246502015948,6945,full_20261027
+same_name,vlmevalkit_sources,/share-mixed/project/linzhe/data/vlmevalkit_sources,project,数据集（格式未核验）,nonempty,180862713500,309,full_20261027
+same_name,vlmevalkit_sources,/share-mixed/project/eai_pwm/benchmarks/data/vlmevalkit_sources,project,数据集（格式未核验）,nonempty,180862713500,309,full_20261027
+same_name,crosstask,/share-mixed/project/linzhe/data/crosstask,project,数据集（格式未核验）,nonempty,65162691313,12084,full_20261027
+same_name,crosstask,/share-mixed/project/eai_pwm/benchmarks/data/crosstask,project,数据集（格式未核验）,nonempty,65162691313,12084,full_20261027
+same_name,crosstask,/share-mixed/project/eai_pwm/datasets/eval/CrossTask,project,数据集（格式未核验）,nonempty,313132886467,4056,full_20261027
+same_name,DexYCB,/share-mixed/project/eai_pwm/datasets/DexYCB,project,数据集（格式未核验）,nonempty,127611176595,13,full_20261027
+same_name,DexYCB,/share-mixed/project/gz/data/tac_data/DexYCB,project,数据集（格式未核验）,nonempty,2841300107877,9642614,full_20261027
+same_name,MMSI-Video-Bench,/share-mixed/project/linzhe/data/MMSI-Video-Bench,project,数据集（格式未核验）,nonempty,159605934851,130944,full_20261027
+same_name,MMSI-Video-Bench,/share-mixed/project/eai_pwm/benchmarks/data/MMSI-Video-Bench,project,数据集（格式未核验）,nonempty,122717038214,129666,full_20261027
+same_name,RynnBrain-Bench,/share-mixed/project/linzhe/data/RynnBrain-Bench,project,数据集（格式未核验）,nonempty,109504540414,578026,full_20261027
+same_name,RynnBrain-Bench,/share-mixed/project/eai_pwm/benchmarks/data/RynnBrain-Bench,project,数据集（格式未核验）,nonempty,107622157912,559273,full_20261027
+same_name,EgoStandard-body,/share-mixed/projset/eai_pwm/datasets/EgoPro/EgoStandard-body,projset,数据集（格式未核验）,nonempty,42903698044,163,full_20261027
+same_name,EgoStandard-body,/share-mixed/projset/eai_pwm/datasets/EgoStandard/EgoStandard-body,projset,数据集（格式未核验）,nonempty,5560568753508,26382,full_20261027
+same_name,CVBench,/share-mixed/project/linzhe/data/CVBench,project,数据集（格式未核验）,nonempty,81979302810,5758,full_20261027
+same_name,CVBench,/share-mixed/project/eai_pwm/benchmarks/data/CVBench,project,数据集（格式未核验）,nonempty,41449597357,4443,full_20261027
+same_name,RefCOCO,/share-mixed/project/eai_pwm/datasets/RefCOCO,project,数据集（格式未核验）,nonempty,16936453411,36,full_20261027
+same_name,RefCOCO,/share-mixed/project/linzhe/data/RefCOCO,project,数据集（格式未核验）,nonempty,22459308478,34248,full_20261027
+same_name,RefCOCO,/share-mixed/project/eai_pwm/benchmarks/data/RefCOCO,project,数据集（格式未核验）,nonempty,22459308478,34248,full_20261027
+same_name,HO3D_v3,/share-mixed/project/eai_pwm/datasets/HO3D_v3,project,数据集（格式未核验）,nonempty,34350969218,4,full_20261027
+same_name,HO3D_v3,/share-mixed/project/gz/data/tac_data/HO3D_v3,project,数据集（格式未核验）,nonempty,131739993952,229640,full_20261027
+same_name,MDPBench-VLMEvalKit,/share-mixed/project/linzhe/data/MDPBench-VLMEvalKit,project,数据集（格式未核验）,nonempty,27436716583,2740,full_20261027
+same_name,MDPBench-VLMEvalKit,/share-mixed/project/eai_pwm/benchmarks/data/MDPBench-VLMEvalKit,project,数据集（格式未核验）,nonempty,27436716583,2740,full_20261027
+same_name,cambrian_s_3m,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_lmdb/cambrian_s_3m,project,prepared/训练打包,nonempty,25149091644,4,full_20261027
+same_name,cambrian_s_3m,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_media_v1_20260808/cambrian_s_3m,project,prepared/训练打包,nonempty,60679338909,3057710,full_20261027
+same_name,vlmevalkit,/share-mixed/project/linzhe/data/vlmevalkit,project,数据集（格式未核验）,nonempty,10791093919,17478,full_20261027
+same_name,vlmevalkit,/share-mixed/project/eai_pwm/benchmarks/data/vlmevalkit,project,数据集（格式未核验）,nonempty,10791093919,17478,full_20261027
+same_name,vlmevalkit,/share-mixed/project/linzhe/data/3DSRBench/vlmevalkit,project,数据集（格式未核验）,nonempty,1364346996,20447,full_20261027
+same_name,vlmevalkit,/share-mixed/project/linzhe/data/CVBench/vlmevalkit,project,数据集（格式未核验）,nonempty,1011411236,2640,full_20261027
+same_name,vlmevalkit,/share-mixed/project/linzhe/data/RefCOCO/vlmevalkit,project,数据集（格式未核验）,nonempty,9132358434,65,full_20261027
+same_name,vlmevalkit,/share-mixed/project/linzhe/data/_sources/vlmevalkit,project,数据集（格式未核验）,nonempty,1107159391,4,full_20261027
+same_name,MVBench,/share-mixed/project/linzhe/data/MVBench,project,数据集（格式未核验）,nonempty,21227263793,49306,full_20261027
+same_name,MVBench,/share-mixed/project/eai_pwm/benchmarks/data/MVBench,project,数据集（格式未核验）,nonempty,21227263793,49306,full_20261027
+same_name,filtered_data_vlm_robotics,/share-mixed/project/eai_pwm/prepared_datasets/processed_lmdb/filtered_data_vlm_robotics,project,prepared/训练打包,nonempty,18321573391,62,full_20261027
+same_name,filtered_data_vlm_robotics,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_lmdb/filtered_data_vlm_robotics,project,prepared/训练打包,nonempty,414237341441,190,full_20261027
+same_name,CausalVQA,/share-mixed/project/eai_pwm/datasets/CausalVQA,project,数据集（格式未核验）,nonempty,16252601059,895,full_20261027
+same_name,CausalVQA,/share-mixed/project/linzhe/data/CausalVQA,project,数据集（格式未核验）,nonempty,16253540900,959,full_20261027
+same_name,llava_onevision,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_lmdb/llava_onevision,project,prepared/训练打包,nonempty,14483309072,4,full_20261027
+same_name,llava_onevision,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_media_v1_20260808/llava_onevision,project,prepared/训练打包,nonempty,225007495913,1967806,full_20261027
+same_name,VSI-Bench,/share-mixed/project/linzhe/data/VSI-Bench,project,数据集（格式未核验）,nonempty,11700996118,10025,full_20261027
+same_name,VSI-Bench,/share-mixed/project/eai_pwm/benchmarks/data/VSI-Bench,project,数据集（格式未核验）,nonempty,11700996118,10025,full_20261027
+same_name,llava_hound,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_lmdb/llava_hound,project,prepared/训练打包,nonempty,9572417578,12,full_20261027
+same_name,llava_hound,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_media_v1_20260808/llava_hound,project,prepared/训练打包,nonempty,246268760724,13588201,full_20261027
+same_name,RoboBench,/share-mixed/project/eai_pwm/datasets/RoboBench,project,数据集（格式未核验）,nonempty,21570185539,88146,full_20261027
+same_name,RoboBench,/share-mixed/project/linzhe/data/RoboBench,project,数据集（格式未核验）,nonempty,9278779419,67574,full_20261027
+same_name,ego4d_interleave,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_lmdb/ego4d_interleave,project,prepared/训练打包,nonempty,8960369981,8,full_20261027
+same_name,ego4d_interleave,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_media_v1_20260808/ego4d_interleave,project,prepared/训练打包,nonempty,331410582200,2574663,full_20261027
+same_name,hf_datasets_cache,/share-mixed/project/linzhe/data/hf_datasets_cache,project,数据集（格式未核验）,nonempty,8735661178,34,full_20261027
+same_name,hf_datasets_cache,/share-mixed/project/eai_pwm/benchmarks/data/hf_datasets_cache,project,数据集（格式未核验）,nonempty,8735661178,34,full_20261027
+same_name,MDPBench,/share-mixed/project/linzhe/data/MDPBench,project,数据集（格式未核验）,nonempty,8330929222,26973,full_20261027
+same_name,MDPBench,/share-mixed/project/eai_pwm/benchmarks/data/MDPBench,project,数据集（格式未核验）,nonempty,8330929222,26973,full_20261027
+same_name,SWITCH,/share-mixed/project/eai_pwm/datasets/SWITCH,project,数据集（格式未核验）,nonempty,15942384281,16507,full_20261027
+same_name,SWITCH,/share-mixed/project/linzhe/data/SWITCH,project,数据集（格式未核验）,nonempty,7461116470,4310,full_20261027
+same_name,MMMU-Pro,/share-mixed/project/linzhe/data/MMMU-Pro,project,数据集（格式未核验）,nonempty,4898667281,7501,full_20261027
+same_name,MMMU-Pro,/share-mixed/project/linzhe/data/_sources/MMMU_Pro,project,数据集（格式未核验）,nonempty,6550610839,66,full_20261027
+same_name,MMMU-Pro,/share-mixed/project/linzhe/data/vlmevalkit_sources/mmmu_pro,project,数据集（格式未核验）,nonempty,1296482800,4,full_20261027
+same_name,DocVQA,/share-mixed/project/linzhe/data/DocVQA,project,数据集（格式未核验）,nonempty,3579980068,5351,full_20261027
+same_name,DocVQA,/share-mixed/project/eai_pwm/benchmarks/data/DocVQA,project,数据集（格式未核验）,nonempty,3579980068,5351,full_20261027
+same_name,DocVQA,/share-mixed/project/linzhe/data/_sources/DocVQA,project,数据集（格式未核验）,nonempty,1322316630,39,full_20261027
+same_name,DocVQA,/share-mixed/project/linzhe/data/vlmevalkit_sources/docvqa,project,数据集（格式未核验）,nonempty,1248245006,2,full_20261027
+same_name,mcq_hf_1500,/share-mixed/project/eai_pwm/datasets/SWITCH/mcq_hf_1500,project,数据集（格式未核验）,nonempty,6015353097,3539,full_20261027
+same_name,mcq_hf_1500,/share-mixed/project/linzhe/data/SWITCH/mcq_hf_1500,project,数据集（格式未核验）,nonempty,6015353097,3539,full_20261027
+same_name,lib,/share-mixed/project/linzhe/benchmark/.venv-transformers-3b/lib,project,其他,nonempty,5778017982,29557,full_20261027
+same_name,lib,/share-mixed/project/linzhe/benchmark/.venv-worldarena-real/lib,project,其他,nonempty,7957512893,33487,full_20261027
+same_name,parquet-data,/share-mixed/project/eai_pwm/data/parquet-data,project,数据集（格式未核验）,nonempty,4680915836,4034,full_20261027
+same_name,parquet-data,/share-mixed/project/liyue/data/parquet-data,project,数据集（格式未核验）,nonempty,32618557963,139976,full_20261027
+same_name,agibot_world_interleave,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_lmdb/agibot_world_interleave,project,prepared/训练打包,nonempty,3562678658,8,full_20261027
+same_name,agibot_world_interleave,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_media_v1_20260808/agibot_world_interleave,project,prepared/训练打包,nonempty,75823793088,1005918,full_20261027
+same_name,hot3d,/share-mixed/project/gz/data/tac_data/hot3d,project,数据集（格式未核验）,nonempty,1260205433665,1381119,full_20261027
+same_name,hot3d,/share-mixed/project/gz/data/tacfoundry/hot3d,project,数据集（格式未核验）,nonempty,2631560527,697,full_20261027
+same_name,BLINK,/share-mixed/project/linzhe/data/BLINK,project,数据集（格式未核验）,nonempty,1516573052,7463,full_20261027
+same_name,BLINK,/share-mixed/project/eai_pwm/benchmarks/data/BLINK,project,数据集（格式未核验）,nonempty,1516573052,7463,full_20261027
+same_name,BLINK,/share-mixed/project/linzhe/data/vlmevalkit_sources/blink,project,数据集（格式未核验）,nonempty,1079358296,2,full_20261027
+same_name,MMSI-Bench,/share-mixed/project/linzhe/data/MMSI-Bench,project,数据集（格式未核验）,nonempty,2557690949,2565,full_20261027
+same_name,MMSI-Bench,/share-mixed/project/eai_pwm/benchmarks/data/MMSI-Bench,project,数据集（格式未核验）,nonempty,2557690949,2565,full_20261027
+same_name,egopressure,/share-mixed/project/eai_pwm/datasets/egopressure,project,数据集（格式未核验）,nonempty,494669811595,2118952,full_20261027
+same_name,egopressure,/share-mixed/project/eai_pwm/datasets/fake/egopressure,project,数据集（格式未核验）,nonempty,2344398923,38400,full_20261027
+same_name,OCRBench_v2,/share-mixed/project/linzhe/data/OCRBench_v2,project,数据集（格式未核验）,nonempty,1099186745,10001,full_20261027
+same_name,OCRBench_v2,/share-mixed/project/eai_pwm/benchmarks/data/OCRBench_v2,project,数据集（格式未核验）,nonempty,1099186745,10001,full_20261027
+same_name,OCRBench_v2,/share-mixed/project/linzhe/data/vlmevalkit_sources/ocrbench_v2,project,数据集（格式未核验）,nonempty,1833137867,2,full_20261027
+same_name,debug,/share-mixed/project/eai_pwm/datasets/CausalVQA/debug,project,数据集（格式未核验）,nonempty,2175613777,101,full_20261027
+same_name,debug,/share-mixed/project/linzhe/data/CausalVQA/debug,project,数据集（格式未核验）,nonempty,2175613777,101,full_20261027
+same_name,OpenNeoData_copy_20261025,/share-mixed/project/eai_pwm/datasets/tactile/OpenNeoData_copy_20261025,project,数据集（格式未核验）,nonempty,3320951054,35872,full_20261027
+same_name,OpenNeoData_copy_20261025,/share-mixed/projset/eai_pwm/datasets/tactile/OpenNeoData_copy_20261025,projset,数据集（格式未核验）,nonempty,2003629835,35884,full_20261027
+same_name,SPAR-Bench,/share-mixed/project/linzhe/data/SPAR-Bench,project,数据集（格式未核验）,nonempty,1888158622,14709,full_20261027
+same_name,SPAR-Bench,/share-mixed/project/eai_pwm/benchmarks/data/SPAR-Bench,project,数据集（格式未核验）,nonempty,1888158622,14709,full_20261027
+same_name,SPAR-Bench-raw,/share-mixed/project/linzhe/data/SPAR-Bench-raw,project,数据集（格式未核验）,nonempty,1840299690,21,full_20261027
+same_name,SPAR-Bench-raw,/share-mixed/project/eai_pwm/benchmarks/data/SPAR-Bench-raw,project,数据集（格式未核验）,nonempty,1840299690,21,full_20261027
+same_name,IntPhys2,/share-mixed/project/linzhe/data/IntPhys2,project,数据集（格式未核验）,nonempty,1809567565,1419,full_20261027
+same_name,IntPhys2,/share-mixed/project/eai_pwm/benchmarks/data/IntPhys2,project,数据集（格式未核验）,nonempty,1809567565,1419,full_20261027
+same_name,InfographicVQA,/share-mixed/project/linzhe/data/InfographicVQA,project,数据集（格式未核验）,nonempty,1754416661,2803,full_20261027
+same_name,InfographicVQA,/share-mixed/project/eai_pwm/benchmarks/data/InfographicVQA,project,数据集（格式未核验）,nonempty,1754416661,2803,full_20261027
+same_name,RealworldQA,/share-mixed/project/linzhe/data/RealworldQA,project,数据集（格式未核验）,nonempty,1631382862,2308,full_20261027
+same_name,RealworldQA,/share-mixed/project/eai_pwm/benchmarks/data/RealworldQA,project,数据集（格式未核验）,nonempty,1631382862,2308,full_20261027
+same_name,galbot_interleave,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_lmdb/galbot_interleave,project,prepared/训练打包,nonempty,1556736317,8,full_20261027
+same_name,galbot_interleave,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_media_v1_20260808/galbot_interleave,project,prepared/训练打包,nonempty,27739155934,293343,full_20261027
+same_name,EmbSpatial-Bench,/share-mixed/project/linzhe/data/EmbSpatial-Bench,project,数据集（格式未核验）,nonempty,1482323042,10937,full_20261027
+same_name,EmbSpatial-Bench,/share-mixed/project/eai_pwm/datasets/EmbSpatial/EmbSpatial-Bench,project,数据集（格式未核验）,nonempty,1455144674,15,full_20261027
+same_name,openqa_hf_500,/share-mixed/project/eai_pwm/datasets/SWITCH/openqa_hf_500,project,数据集（格式未核验）,nonempty,1429217514,762,full_20261027
+same_name,openqa_hf_500,/share-mixed/project/linzhe/data/SWITCH/openqa_hf_500,project,数据集（格式未核验）,nonempty,1429217514,762,full_20261027
+same_name,WorldArena_Robotwin2.0,/share-mixed/project/linzhe/data/WorldArena_Robotwin2.0,project,数据集（格式未核验）,nonempty,1389519849,18043,full_20261027
+same_name,WorldArena_Robotwin2.0,/share-mixed/project/eai_pwm/benchmarks/data/WorldArena_Robotwin2.0,project,数据集（格式未核验）,nonempty,1389519849,18043,full_20261027
+same_name,emu_interaction_interleave,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_lmdb/emu_interaction_interleave,project,prepared/训练打包,nonempty,1139514548,4,full_20261027
+same_name,emu_interaction_interleave,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_media_v1_20260808/emu_interaction_interleave,project,prepared/训练打包,nonempty,33207025405,383145,full_20261027
+same_name,OCRBench_v2-VLMEvalKit,/share-mixed/project/linzhe/data/OCRBench_v2-VLMEvalKit,project,数据集（格式未核验）,nonempty,1099053655,10002,full_20261027
+same_name,OCRBench_v2-VLMEvalKit,/share-mixed/project/eai_pwm/benchmarks/data/OCRBench_v2-VLMEvalKit,project,数据集（格式未核验）,nonempty,1099053655,10002,full_20261027
+same_name,agibot-world_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/latents/agibot-world_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,3707596272323,6181,full_20261027
+same_name,agibot-world_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/agibot-world_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,1372655008328,260,large_files_only_20261027
+same_name,agibot-world_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/demo/vae_demo_10k/latents/agibot-world_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,4873547904,2,large_files_only_20261027
+same_name,egocentric-10k_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/latents/egocentric-10k_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,5240141176019,8963,full_20261027
+same_name,egocentric-10k_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/egocentric-10k_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,251941249448,36,large_files_only_20261027
+same_name,egodex_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/latents/egodex_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,1285695420922,1899,full_20261027
+same_name,egodex_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/egodex_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,297536761312,42,large_files_only_20261027
+same_name,egodex_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/demo/vae_demo_10k/latents/egodex_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,5459016320,2,large_files_only_20261027
+same_name,egolive_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/latents/egolive_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,2581747891902,4312,full_20261027
+same_name,egolive_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/egolive_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,814079314112,114,large_files_only_20261027
+same_name,egolive_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_v04/latents/egolive_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,54596255928,23,large_files_only_20261027
+same_name,egolive_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/demo/vae_demo_10k/latents/egolive_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,4735013808,2,large_files_only_20261027
+same_name,ego_process,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_168718_seg_1/ego_process,projset,数据集（格式未核验）,nonempty,1156392638,1,large_files_only_20261027
+same_name,ego_process,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_170166_seg_1/ego_process,projset,数据集（格式未核验）,nonempty,1152175957,1,large_files_only_20261027
+same_name,ego_process,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_170173_seg_5/ego_process,projset,数据集（格式未核验）,nonempty,1117040123,1,large_files_only_20261027
+same_name,ego_process,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_173071_seg_11/ego_process,projset,数据集（格式未核验）,nonempty,1148059657,1,large_files_only_20261027
+same_name,ego_process,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_174008_seg_5/ego_process,projset,数据集（格式未核验）,nonempty,1087976344,1,large_files_only_20261027
+same_name,ego_process,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_174014_seg_16/ego_process,projset,数据集（格式未核验）,nonempty,1113904297,1,large_files_only_20261027
+same_name,ego_process,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_174015_seg_3/ego_process,projset,数据集（格式未核验）,nonempty,1122412070,1,large_files_only_20261027
+same_name,ego_process,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_174166_seg_1/ego_process,projset,数据集（格式未核验）,nonempty,1285039722,1,large_files_only_20261027
+same_name,ego_process,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_177484_seg_11/ego_process,projset,数据集（格式未核验）,nonempty,1449339789,1,large_files_only_20261027
+same_name,ego_process,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_180900_seg_21/ego_process,projset,数据集（格式未核验）,nonempty,1462518426,1,large_files_only_20261027
+same_name,ego_process,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_187207_seg_7/ego_process,projset,数据集（格式未核验）,nonempty,1100245706,1,large_files_only_20261027
+same_name,ego_process,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_188377_seg_1/ego_process,projset,数据集（格式未核验）,nonempty,1262795122,1,large_files_only_20261027
+same_name,ego_process,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_188573_seg_6/ego_process,projset,数据集（格式未核验）,nonempty,1180965684,1,large_files_only_20261027
+same_name,ego_process,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_189588_seg_1/ego_process,projset,数据集（格式未核验）,nonempty,1225695435,1,large_files_only_20261027
+same_name,ego_process,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_189625_seg_31/ego_process,projset,数据集（格式未核验）,nonempty,1433460623,1,large_files_only_20261027
+same_name,ego_process,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_191762_seg_21/ego_process,projset,数据集（格式未核验）,nonempty,1390630476,1,large_files_only_20261027
+same_name,egopro_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_E/latents/egopro_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,20629954576,3,large_files_only_20261027
+same_name,egopro_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_lw2030c2/latents/egopro_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,320615426168,29,large_files_only_20261027
+same_name,egopro_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/latents/egopro_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,920475049703,1141,full_20261027
+same_name,egopro_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/egopro_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,13603303704,2,large_files_only_20261027
+same_name,egostandard_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/latents/egostandard_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,,,unknown
+same_name,egostandard_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_lw2030c2/latents/egostandard_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,2669956943256,241,large_files_only_20261027
+same_name,egostandard_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/latents/egostandard_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,6045717387591,8667,full_20261027
+same_name,egostandard_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/egostandard_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,4439509135856,661,large_files_only_20261027
+same_name,egostandard_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20b/latents/egostandard_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,89463436304,10,large_files_only_20261027
+same_name,Galaxea-Open-World-Dataset_20260826,/share-mixed/project/eai_pwm/datasets/Galaxea-Open-World-Dataset_20260826,project,数据集（格式未核验）,nonempty,12363,2,full_20261027
+same_name,Galaxea-Open-World-Dataset_20260826,/share-mixed/projset/eai_pwm/datasets/Galaxea-Open-World-Dataset_20260826_hf/data/Galaxea-Open-World-Dataset_20260826,projset,数据集（格式未核验）,nonempty,2866524676995,225,large_files_only_20261027
+same_name,GalaxeaVLA,/share-mixed/project/eai_pwm/datasets/download_jt/RoboTwin2.0/cotrain_ckpt/GalaxeaVLA,project,数据集（格式未核验）,nonempty,12060833291,1,large_files_only_20261027
+same_name,GalaxeaVLA,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/GalaxeaVLA,projset,数据集（格式未核验）,nonempty,101441469876,6,large_files_only_20261027
+same_name,holoassist_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/latents/holoassist_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,97644790908,214,full_20261027
+same_name,holoassist_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_E/latents/holoassist_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,20165392968,3,large_files_only_20261027
+same_name,holoassist_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_v04/latents/holoassist_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,90854657856,48,large_files_only_20261027
+same_name,holoassist_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/demo/vae_demo_10k/latents/holoassist_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,3765555816,2,large_files_only_20261027
+same_name,ks3util_output,/share-mixed/project/eai_pwm/datasets/ks3util_output,project,数据集（格式未核验）,nonempty,,,unknown
+same_name,ks3util_output,/share-mixed/projset/eai_pwm/datasets/ks3util_output,projset,数据集（格式未核验）,nonempty,,,unknown
+same_name,lightwheel_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/latents/lightwheel_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,11413674839355,18770,full_20261027
+same_name,lightwheel_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/lightwheel_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,79002498960,9,large_files_only_20261027
+same_name,MindCube,/share-mixed/project/eai_pwm/datasets/MindCube,project,数据集（格式未核验）,nonempty,,,unknown
+same_name,MindCube,/share-mixed/project/linzhe/data/MindCube,project,数据集（格式未核验）,nonempty,1521789700,4335,full_20261027
+same_name,OakInk2,/share-mixed/project/gz/data/tac_data/OakInk2,project,数据集（格式未核验）,nonempty,,,unknown
+same_name,OakInk2,/share-mixed/project/gz/data/tac_data/oakink2,project,数据集（格式未核验）,nonempty,4273215501562,65226,full_20261027
+same_name,openaoe-2000h_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/latents/openaoe-2000h_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,1420121395646,2391,full_20261027
+same_name,openaoe-2000h_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/openaoe-2000h_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,408622947392,58,large_files_only_20261027
+same_name,openaoe-2000h_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_v04/latents/openaoe-2000h_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,200415429832,86,large_files_only_20261027
+same_name,openaoe-2000h_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/demo/vae_demo_10k/latents/openaoe-2000h_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,4881557968,2,large_files_only_20261027
+same_name,OpenLoong-Community_visuo-tactile,/share-mixed/projset/eai_pwm/datasets/tactile/OpenLoong-Community_visuo-tactile,projset,数据集（格式未核验）,nonempty,17249460283115,9250,full_20261027
+same_name,OpenLoong-Community_visuo-tactile,/share-mixed/project/eai_pwm/datasets/OpenLong-tactile/data/OpenLoong-Community_visuo-tactile,project,数据集（格式未核验）,nonempty,2455108912,2,large_files_only_20261027
+same_name,platform_274868095812632650,/share-mixed/project/eai_pwm/datasets/platform_274868095812632650,project,数据集（格式未核验）,nonempty,,,unknown
+same_name,platform_274868095812632650,/share-mixed/projset/eai_pwm/datasets/platform_274868095812632650,projset,数据集（格式未核验）,nonempty,,,unknown
+same_name,robocoin_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/latents/robocoin_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,73110737662,42,full_20261027
+same_name,robocoin_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_lw2030c2/latents/robocoin_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,106836370768,10,large_files_only_20261027
+same_name,robocoin_lw2030_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/latents/robocoin_lw2030_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,23463735411,26,full_20261027
+same_name,robocoin_lw2030_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_lw2030c2/latents/robocoin_lw2030_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,149412414728,17,large_files_only_20261027
+same_name,robocoin_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/latents/robocoin_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,607528445420,1066,full_20261027
+same_name,robocoin_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/robocoin_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,178574859208,26,large_files_only_20261027
+same_name,robocoin_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/latents/robocoin_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,995828836833,2571,full_20261027
+same_name,robocoin_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/robocoin_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,77088345576,15,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-ee-0,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/DM_0/RoboDojo-sim-arx_x5-ee-0,projset,数据集（格式未核验）,nonempty,5795966952,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-ee-0,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/DM_05/RoboDojo-sim-arx_x5-ee-0,projset,数据集（格式未核验）,nonempty,23316655136,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-ee-0,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/X_VLA/RoboDojo-sim-arx_x5-ee-0,projset,数据集（格式未核验）,nonempty,3519068172,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-ee-0,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/Xiaomi_Robotics_0/RoboDojo-sim-arx_x5-ee-0,projset,数据集（格式未核验）,nonempty,10210763053,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-ee-0,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/Xiaomi_Robotics_1/RoboDojo-sim-arx_x5-ee-0,projset,数据集（格式未核验）,nonempty,11004717357,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-ee-1,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/DM_0/RoboDojo-sim-arx_x5-ee-1,projset,数据集（格式未核验）,nonempty,5795966952,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-ee-1,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/X_VLA/RoboDojo-sim-arx_x5-ee-1,projset,数据集（格式未核验）,nonempty,3519068172,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-ee-1,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/Xiaomi_Robotics_0/RoboDojo-sim-arx_x5-ee-1,projset,数据集（格式未核验）,nonempty,10210763309,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-ee-2,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/DM_0/RoboDojo-sim-arx_x5-ee-2,projset,数据集（格式未核验）,nonempty,5795966952,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-ee-2,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/X_VLA/RoboDojo-sim-arx_x5-ee-2,projset,数据集（格式未核验）,nonempty,3519068172,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-ee-2,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/Xiaomi_Robotics_0/RoboDojo-sim-arx_x5-ee-2,projset,数据集（格式未核验）,nonempty,10210763309,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-0,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/A1/RoboDojo-sim-arx_x5-joint-0,projset,数据集（格式未核验）,nonempty,33841822490,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-0,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/Abot_M0/RoboDojo-sim-arx_x5-joint-0,projset,数据集（格式未核验）,nonempty,10003352594,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-0,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/EventVLA/RoboDojo-sim-arx_x5-joint-0,projset,数据集（格式未核验）,nonempty,9798253750,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-0,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/FastWAM/RoboDojo-sim-arx_x5-joint-0,projset,数据集（格式未核验）,nonempty,12041813433,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-0,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/G05/RoboDojo-sim-arx_x5-joint-0,projset,数据集（格式未核验）,nonempty,33918328967,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-0,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/GO1/RoboDojo-sim-arx_x5-joint-0,projset,数据集（格式未核验）,nonempty,44494527288,10,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-0,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/GR00T_N17/RoboDojo-sim-arx_x5-joint-0,projset,数据集（格式未核验）,nonempty,6910499416,2,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-0,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/H_RDT/RoboDojo-sim-arx_x5-joint-0,projset,数据集（格式未核验）,nonempty,32998981606,10,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-0,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/InternVLA_A1/RoboDojo-sim-arx_x5-joint-0,projset,数据集（格式未核验）,nonempty,6721209208,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-0,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/Meituan_Robotics_0/RoboDojo-sim-arx_x5-joint-0,projset,数据集（格式未核验）,nonempty,11365627414,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-0,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/MolmoAct2/RoboDojo-sim-arx_x5-joint-0,projset,数据集（格式未核验）,nonempty,21789816760,5,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-0,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/Pi_0/RoboDojo-sim-arx_x5-joint-0,projset,数据集（格式未核验）,nonempty,41857427552,18,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-0,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/Pi_05/RoboDojo-sim-arx_x5-joint-0,projset,数据集（格式未核验）,nonempty,43287938956,19,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-0,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/RDT_1B/RoboDojo-sim-arx_x5-joint-0,projset,数据集（格式未核验）,nonempty,22110168790,11,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-0,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/Spatial_Forcing/RoboDojo-sim-arx_x5-joint-0,projset,数据集（格式未核验）,nonempty,9477900643,5,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-0,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/Spirit_v1.5/RoboDojo-sim-arx_x5-joint-0,projset,数据集（格式未核验）,nonempty,21603726776,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-0,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/StarVla_alpha/RoboDojo-sim-arx_x5-joint-0,projset,数据集（格式未核验）,nonempty,9785133528,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-0,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/VLAct/RoboDojo-sim-arx_x5-joint-0,projset,数据集（格式未核验）,nonempty,9806105048,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-1,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/Abot_M0/RoboDojo-sim-arx_x5-joint-1,projset,数据集（格式未核验）,nonempty,10003365280,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-1,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/GR00T_N17/RoboDojo-sim-arx_x5-joint-1,projset,数据集（格式未核验）,nonempty,6910499416,2,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-1,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/InternVLA_A1/RoboDojo-sim-arx_x5-joint-1,projset,数据集（格式未核验）,nonempty,6721209208,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-1,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/OpenVLA_OFT/RoboDojo-sim-arx_x5-joint-1,projset,数据集（格式未核验）,nonempty,18164891532,4,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-1,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/Pi_0/RoboDojo-sim-arx_x5-joint-1,projset,数据集（格式未核验）,nonempty,9462560387,5,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-1,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/Pi_05/RoboDojo-sim-arx_x5-joint-1,projset,数据集（格式未核验）,nonempty,11450707973,5,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-1,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/RDT_1B/RoboDojo-sim-arx_x5-joint-1,projset,数据集（格式未核验）,nonempty,22110168790,11,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-1,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/StarVla_alpha/RoboDojo-sim-arx_x5-joint-1,projset,数据集（格式未核验）,nonempty,9785133528,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-2,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/Abot_M0/RoboDojo-sim-arx_x5-joint-2,projset,数据集（格式未核验）,nonempty,10003365280,1,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-2,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/GR00T_N17/RoboDojo-sim-arx_x5-joint-2,projset,数据集（格式未核验）,nonempty,6910499416,2,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-2,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/InternVLA_A1/RoboDojo-sim-arx_x5-joint-2,projset,数据集（格式未核验）,nonempty,19386407908,2,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-2,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/Pi_0/RoboDojo-sim-arx_x5-joint-2,projset,数据集（格式未核验）,nonempty,9847655411,5,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-2,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/Pi_05/RoboDojo-sim-arx_x5-joint-2,projset,数据集（格式未核验）,nonempty,10130140086,6,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-2,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/RDT_1B/RoboDojo-sim-arx_x5-joint-2,projset,数据集（格式未核验）,nonempty,22110168790,11,large_files_only_20261027
+same_name,RoboDojo-sim-arx_x5-joint-2,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/StarVla_alpha/RoboDojo-sim-arx_x5-joint-2,projset,数据集（格式未核验）,nonempty,9785133528,1,large_files_only_20261027
+same_name,robomind1_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/latents/robomind1_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,77287512420,190,full_20261027
+same_name,robomind1_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/robomind1_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,8521161632,2,large_files_only_20261027
+same_name,robomind1_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/latents/robomind1_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,241725489430,750,full_20261027
+same_name,robomind1_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/robomind1_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,10245163416,2,large_files_only_20261027
+same_name,robomind2_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/latents/robomind2_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,237624358413,562,full_20261027
+same_name,robomind2_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/robomind2_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,29694463432,5,large_files_only_20261027
+same_name,robomind2_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/latents/robomind2_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,772569561586,1866,full_20261027
+same_name,robomind2_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/robomind2_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,54944138328,11,large_files_only_20261027
+same_name,robomind2_wan2pt2_tokenizer-tsrcfps480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/latents/robomind2_wan2pt2_tokenizer-tsrcfps480-20eb789667fa_v1,project,latent/特征,nonempty,955551558060,3039,full_20261027
+same_name,robomind2_wan2pt2_tokenizer-tsrcfps480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/robomind2_wan2pt2_tokenizer-tsrcfps480-20eb789667fa_v1,project,latent/特征,nonempty,152838832040,53,large_files_only_20261027
+same_name,robomind2_wan2pt2_tokenizer-tsrcfps480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_robomind2_b1/latents/robomind2_wan2pt2_tokenizer-tsrcfps480-20eb789667fa_v1,project,latent/特征,nonempty,52485429784,46,large_files_only_20261027
+same_name,robomind2_wan2pt2_tokenizer-tsrcfpsnative640x480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/latents/robomind2_wan2pt2_tokenizer-tsrcfpsnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,15183045892,366,full_20261027
+same_name,robomind2_wan2pt2_tokenizer-tsrcfpsnative640x480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/robomind2_wan2pt2_tokenizer-tsrcfpsnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,1372991536,1,large_files_only_20261027
+same_name,stereo-550_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/latents/stereo-550_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,1300738012109,2051,full_20261027
+same_name,stereo-550_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/stereo-550_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,320030085456,45,large_files_only_20261027
+same_name,stereo-550_wan2pt2_tokenizer-t480-20eb789667fa_v1,/share-mixed/project/eai_pwm/pipeline_store/demo/vae_demo_10k/latents/stereo-550_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,5212237136,2,large_files_only_20261027
+same_name,Paxini-Omnisharing,/share-mixed/project/eai_pwm/datasets/Paxini-Omnisharing,project,数据集（格式未核验）,nonempty,8656316542214,44211,full_20261027
+same_name,Paxini-Omnisharing,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/Paxini-Omnisharing,projset,action_processed_r1/动作或训练加工,nonempty,722785766243,255582,full_20261027
+same_name,Paxini-Omnisharing,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/Paxini-Omnisharing,projset,action_processed_r2/动作或训练加工,nonempty,19318069420,1343,full_20261027
+same_name,Paxini-Omnisharing,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/Paxini-Omnisharing,projset,action_processed_r2_new/动作或训练加工,nonempty,19317950311,1337,full_20261027
+same_name,Paxini-Omnisharing,/share-mixed/projset/eai_pwm/datasets/action_processed_r3/Paxini-Omnisharing,projset,action_processed_r3/动作或训练加工,nonempty,115501788277,127120,full_20261027
+same_name,Paxini-Omnisharing,/share-mixed/projset/eai_pwm/paxini_cleaning/source/Paxini-Omnisharing,projset,其他,nonempty,9708534133237,45119,full_20261027
+same_name,RealOmin-OpenData,/share-mixed/projset/eai_pwm/datasets/RealOmin-OpenData,projset,数据集（格式未核验）,nonempty,5641512318311,78923,full_20261027
+same_name,RealOmin-OpenData,/share-mixed/project/eai_pwm/datasets/action_processed_r1/RealOmin-OpenData,project,action_processed_r1/动作或训练加工,nonempty,5572063541925,628096,full_20261027
+same_name,AgiBotWorld2026,/share-mixed/projset/eai_pwm/datasets/AgiBotWorld2026,projset,数据集（格式未核验）,nonempty,4996335547058,175,full_20261027
+same_name,AgiBotWorld2026,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/AgiBotWorld2026,projset,action_processed_r1/动作或训练加工,nonempty,15119114661962,221347,full_20261027
+same_name,AgiBotWorld2026,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/AgiBotWorld2026,projset,action_processed_r2/动作或训练加工,nonempty,16234552473,4479,full_20261027
+same_name,AgiBotWorld2026,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/AgiBotWorld2026,projset,action_processed_r2_new/动作或训练加工,nonempty,11701803768,735,full_20261027
+same_name,RoboTwin2.0,/share-mixed/project/eai_pwm/datasets/RoboTwin2.0,project,数据集（格式未核验）,nonempty,1837760888942,531937,full_20261027
+same_name,RoboTwin2.0,/share-mixed/project/gz/benchmark/RoboTwin2.0,project,其他,nonempty,35323957225,14567,full_20261027
+same_name,RoboTwin2.0,/share-mixed/project/linzhe/data/RoboTWIN2.0,project,数据集（格式未核验）,nonempty,1473174748242,598,full_20261027
+same_name,RoboTwin2.0,/share-mixed/project/eai_pwm/benchmarks/data/RoboTWIN2.0,project,数据集（格式未核验）,nonempty,1473174748242,598,full_20261027
+same_name,RoboTwin2.0,/share-mixed/project/eai_pwm/datasets/download_jt/RoboTwin2.0,project,数据集（格式未核验）,nonempty,1655249940518,712,full_20261027
+same_name,RoboTwin2.0,/share-mixed/project/linzhe/robotwin-sync/data/robotwin-2.0,project,数据集（格式未核验）,nonempty,14928318176,6,full_20261027
+same_name,RoboTwin2.0,/share-mixed/project/linzhe/robotwin-sync/sources/robotwin-2.0,project,pipeline sources/源数据,nonempty,16622401968,21719,full_20261027
+same_name,RoboTwin2.0,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/RoboTwin2.0,projset,action_processed_r1/动作或训练加工,nonempty,82719700562,630665,full_20261027
+same_name,RoboTwin2.0,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/RoboTwin2.0,projset,action_processed_r2/动作或训练加工,nonempty,28122185856,2189,full_20261027
+same_name,RoboTwin2.0,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/RoboTwin2.0,projset,action_processed_r2_new/动作或训练加工,nonempty,15934340509,606,full_20261027
+same_name,RoboCasa365,/share-mixed/project/gz/benchmark/RoboCasa365,project,其他,nonempty,188476747037,3907,full_20261027
+same_name,RoboCasa365,/share-mixed/projset/eai_pwm/datasets/robocasa365,projset,数据集（格式未核验）,nonempty,501253999104,410,full_20261027
+same_name,RoboCasa365,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/RoboCasa365,projset,action_processed_r1/动作或训练加工,nonempty,594156291223,3259385,full_20261027
+same_name,RoboCasa365,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/RoboCasa365,projset,action_processed_r2/动作或训练加工,nonempty,175293997932,255147,full_20261027
+same_name,RoboCasa365,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/RoboCasa365,projset,action_processed_r2_new/动作或训练加工,nonempty,64810330830,4364,full_20261027
+same_name,bench2dex,/share-mixed/project/gz/DexTrain/datasets/bench2dex,project,数据集（格式未核验）,nonempty,388452608155,2786,full_20261027
+same_name,bench2dex,/share-mixed/projset/eai_pwm/datasets/action_tactile_pretraining_20261026/bench2dex,projset,action_tactile_pretraining_20261026/动作或训练加工,nonempty,274663710589,28621,full_20261027
+same_name,bench2dex,/share-mixed/projset/eai_pwm/datasets/tactile/Bench2Dex,projset,数据集（格式未核验）,nonempty,406254817263,10412,full_20261027
+same_name,koala-36m,/share-mixed/project/eai_pwm/datasets/koala-36m,project,数据集（格式未核验）,nonempty,48893442042,10,full_20261027
+same_name,koala-36m,/share-mixed/project/eai_pwm/data/parquet-data/koala-36m,project,数据集（格式未核验）,nonempty,3255607488,2549,full_20261027
+same_name,koala-36m,/share-mixed/project/eai_pwm/datasets/yt43_videos/koala-36m,project,数据集（格式未核验）,nonempty,161155421548,2426,full_20261027
+same_name,koala-36m,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_lmdb/koala-36m,project,prepared/训练打包,nonempty,190007116400,17,full_20261027
+same_name,koala-36m,/share-mixed/project/liyue/data/parquet-data/koala-36m,project,数据集（格式未核验）,nonempty,3255607488,2549,full_20261027
+same_name,Galbot,/share-mixed/project/eai_pwm/datasets/action_processed_r1/Galbot,project,action_processed_r1/动作或训练加工,nonempty,7899297931960,966258,full_20261027
+same_name,Galbot,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/Galbot,projset,action_processed_r2/动作或训练加工,nonempty,58373590934,7492,full_20261027
+same_name,Galbot,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/Galbot,projset,action_processed_r2_new/动作或训练加工,nonempty,15319897987,3976,full_20261027
+same_name,Cosmos3-DROID,/share-mixed/project/eai_pwm/datasets/Cosmos3-DROID,project,数据集（格式未核验）,nonempty,758395759761,7595,full_20261027
+same_name,Cosmos3-DROID,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/Cosmos3-DROID,projset,action_processed_r1/动作或训练加工,nonempty,6283070098,171,full_20261027
+same_name,Cosmos3-DROID,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/Cosmos3-DROID,projset,action_processed_r2/动作或训练加工,nonempty,58782612563,1169763,full_20261027
+same_name,Cosmos3-DROID,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/Cosmos3-DROID,projset,action_processed_r2_new/动作或训练加工,nonempty,7181228101,167,full_20261027
+same_name,Sharpa-North,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/Sharpa-North,projset,action_processed_r1/动作或训练加工,nonempty,38912825930,48606,full_20261027
+same_name,Sharpa-North,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/Sharpa-North,projset,action_processed_r2/动作或训练加工,nonempty,10776811798,1165,full_20261027
+same_name,Sharpa-North,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/Sharpa-North,projset,action_processed_r2_new/动作或训练加工,nonempty,10776655888,1162,full_20261027
+same_name,Sharpa-North,/share-mixed/projset/eai_pwm/datasets/action_processed_r3/Sharpa-North,projset,action_processed_r3/动作或训练加工,nonempty,127740914495,33975,full_20261027
+same_name,downloads,/share-mixed/project/eai_pwm/datasets/ARCTIC/downloads,project,数据集（格式未核验）,nonempty,737353846262,351,full_20261027
+same_name,downloads,/share-mixed/project/gz/benchmark/robotwin_h100/downloads,project,其他,nonempty,15048664133,13,full_20261027
+same_name,downloads,/share-mixed/project/linzhe/data/crosstask/downloads,project,数据集（格式未核验）,nonempty,31197405788,9,full_20261027
+same_name,Action100M,/share-mixed/project/eai_pwm/datasets/Action100M,project,数据集（格式未核验）,nonempty,39516671163,127,full_20261027
+same_name,Action100M,/share-mixed/project/eai_pwm/data/parquet-data/action100m,project,数据集（格式未核验）,nonempty,1425148646,1483,full_20261027
+same_name,Action100M,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_lmdb/action100m,project,prepared/训练打包,nonempty,87666540589,14,full_20261027
+same_name,Action100M,/share-mixed/project/liyue/data/parquet-data/action100m,project,数据集（格式未核验）,nonempty,1425148646,1483,full_20261027
+same_name,zhen,/share-mixed/project/eai_pwm/tactile/zhen,project,其他,nonempty,39091725976,193552,full_20261027
+same_name,zhen,/share-mixed/projset/eai_pwm/datasets/tactile/zhen,projset,数据集（格式未核验）,nonempty,11531984404032,1006886,full_20261027
+same_name,T-Rex,/share-mixed/project/eai_pwm/datasets/T-Rex,project,数据集（格式未核验）,nonempty,5849,1,full_20261027
+same_name,T-Rex,/share-mixed/project/eai_pwm/datasets/action_policy_v12_no_paxini_20261019/trex,project,action_policy_v12_no_paxini_20261019/动作或训练加工,nonempty,2972260159,9528,full_20261027
+same_name,T-Rex,/share-mixed/projset/eai_pwm/datasets/action_policy_lwh_1021/trex,projset,action_policy_lwh_1021/动作或训练加工,nonempty,7090010083,4770,full_20261027
+same_name,T-Rex,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/T-Rex,projset,action_processed_r1/动作或训练加工,nonempty,3353973287,2098,full_20261027
+same_name,T-Rex,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/T-Rex,projset,action_processed_r2/动作或训练加工,nonempty,3737449669,131,full_20261027
+same_name,T-Rex,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/T-Rex,projset,action_processed_r2_new/动作或训练加工,nonempty,3653886758,117,full_20261027
+same_name,T-Rex,/share-mixed/projset/eai_pwm/datasets/action_processed_r3/T-Rex,projset,action_processed_r3/动作或训练加工,nonempty,36715534659,16194,full_20261027
+same_name,FastUMI,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/FastUMI,projset,action_processed_r1/动作或训练加工,nonempty,8565178085,1299,full_20261027
+same_name,FastUMI,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/FastUMI,projset,action_processed_r2/动作或训练加工,nonempty,19034568071,1913,full_20261027
+same_name,FastUMI,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/FastUMI,projset,action_processed_r2_new/动作或训练加工,nonempty,11150148581,254,full_20261027
+same_name,humantouch,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/humantouch,projset,action_processed_r2/动作或训练加工,nonempty,12588823885,18296,full_20261027
+same_name,humantouch,/share-mixed/projset/eai_pwm/datasets/action_processed_r3/humantouch,projset,action_processed_r3/动作或训练加工,nonempty,43400249314,35162,full_20261027
+same_name,GQA,/share-mixed/project/eai_pwm/datasets/GQA,project,数据集（格式未核验）,nonempty,30185824045,179,full_20261027
+same_name,GQA,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_lmdb/gqa,project,prepared/训练打包,nonempty,2236247541,4,full_20261027
+same_name,GQA,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_media_v1_20260808/gqa,project,prepared/训练打包,nonempty,10199025569,72140,full_20261027
+same_name,ShareRobot,/share-mixed/project/eai_pwm/datasets/ShareRobot,project,数据集（格式未核验）,nonempty,689280766548,1553371,full_20261027
+same_name,ShareRobot,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_lmdb/sharerobot,project,prepared/训练打包,nonempty,8057155351,12,full_20261027
+same_name,Galaxea,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/Galaxea,projset,action_processed_r1/动作或训练加工,nonempty,5734815559706,206356,full_20261027
+same_name,Galaxea,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/Galaxea,projset,action_processed_r2/动作或训练加工,nonempty,3562200624,1332,full_20261027
+same_name,Galaxea,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/Galaxea,projset,action_processed_r2_new/动作或训练加工,nonempty,3435529412,1322,full_20261027
+same_name,sharpa_origami,/share-mixed/project/eai_pwm/datasets/action_policy_v12_no_paxini_20261019/sharpa_origami,project,action_policy_v12_no_paxini_20261019/动作或训练加工,nonempty,6944398510,3293,full_20261027
+same_name,sharpa_origami,/share-mixed/projset/eai_pwm/datasets/action_policy_lwh_1021/sharpa_origami,projset,action_policy_lwh_1021/动作或训练加工,nonempty,14870737137,1653,full_20261027
+same_name,sharpa_ftp,/share-mixed/project/eai_pwm/datasets/action_policy_v12_no_paxini_20261019/sharpa_ftp,project,action_policy_v12_no_paxini_20261019/动作或训练加工,nonempty,4272828838,14661,full_20261027
+same_name,sharpa_ftp,/share-mixed/projset/eai_pwm/datasets/action_policy_lwh_1021/sharpa_ftp,projset,action_policy_lwh_1021/动作或训练加工,nonempty,10543897683,7337,full_20261027
+same_name,sharpa_roco,/share-mixed/project/eai_pwm/datasets/action_policy_v12_no_paxini_20261019/sharpa_roco,project,action_policy_v12_no_paxini_20261019/动作或训练加工,nonempty,1530341332,1055,full_20261027
+same_name,sharpa_roco,/share-mixed/projset/eai_pwm/datasets/action_policy_lwh_1021/sharpa_roco,projset,action_policy_lwh_1021/动作或训练加工,nonempty,2942645808,534,full_20261027
+same_name,robotwin-1.0,/share-mixed/project/linzhe/robotwin-sync/data/robotwin-1.0,project,数据集（格式未核验）,nonempty,1496173803,9,full_20261027
+same_name,robotwin-1.0,/share-mixed/project/linzhe/robotwin-sync/sources/robotwin-1.0,project,pipeline sources/源数据,nonempty,3279689655,9916,full_20261027
+same_name,AgiBotWorld-Beta,/share-mixed/project/eai_pwm/datasets/AgiBotWorld-Beta,project,数据集（格式未核验）,nonempty,48104148820097,6527,full_20261027
+same_name,AgiBotWorld-Beta,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/AgiBotWorld-Beta,projset,action_processed_r1/动作或训练加工,nonempty,11001229890824,1357051,full_20261027
+same_name,AgiBotWorld-Beta,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/AgiBotWorld-Beta,projset,action_processed_r2/动作或训练加工,nonempty,202491927338,10867,full_20261027
+same_name,AgiBotWorld-Beta,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/AgiBotWorld-Beta,projset,action_processed_r2_new/动作或训练加工,nonempty,111237566011,5547,full_20261027
+same_name,AgiBotWorld-Beta,/share-mixed/project/eai_pwm/datasets/download_jt/unzip/AgiBotWorld-Beta,project,解包数据,nonempty,,,unknown
+same_name,AgiBotWorld-Beta,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/_provenance/eef_alignment_history/r2/AgiBotWorld-Beta,projset,action_processed_r2/动作或训练加工,nonempty,1609133328,1,large_files_only_20261027
+same_name,AgiBotWorld-Beta,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/_work/remove-agibot-dexhand-20261010-v1/previous/AgiBotWorld-Beta,projset,action_processed_r2/动作或训练加工,nonempty,1426952533,1,large_files_only_20261027
+same_name,EgoDex,/share-mixed/project/yhzhang/data/EgoDex,project,数据集（格式未核验）,nonempty,1556917666818,1289860,full_20261027
+same_name,EgoDex,/share-mixed/projset/eai_pwm/datasets/EgoDex,projset,数据集（格式未核验）,nonempty,2112082637329,676469,full_20261027
+same_name,EgoDex,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/egodex,projset,action_processed_r2/动作或训练加工,nonempty,,,unknown
+same_name,egolive,/share-mixed/project/yhzhang/hand_pose_1023/egolive,project,姿态/预处理,nonempty,12804582456476,582163,full_20261027
+same_name,egolive,/share-mixed/projset/eai_pwm/datasets/EgoLive,projset,数据集（格式未核验）,nonempty,35492502671550,199655,full_20261027
+same_name,egolive,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/egolive,projset,action_processed_r2/动作或训练加工,nonempty,,,unknown
+same_name,egopro,/share-mixed/project/yhzhang/hand_pose_1023/egopro,project,姿态/预处理,nonempty,4127650808452,280611,full_20261027
+same_name,egopro,/share-mixed/projset/eai_pwm/datasets/EgoPro,projset,数据集（格式未核验）,nonempty,12291039861191,31470,full_20261027
+same_name,egopro,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/egopro,projset,action_processed_r2/动作或训练加工,nonempty,,,unknown
+same_name,EgoStandard,/share-mixed/project/eai_pwm/datasets/EgoStandard,project,数据集（格式未核验）,nonempty,0,0,full_20261027
+same_name,EgoStandard,/share-mixed/project/yhzhang/hand_pose_1023/egostandard,project,姿态/预处理,nonempty,28819894387738,2340846,full_20261027
+same_name,EgoStandard,/share-mixed/projset/eai_pwm/datasets/EgoStandard,projset,数据集（格式未核验）,nonempty,49261094728345,333706,full_20261027
+same_name,EgoStandard,/share-mixed/project/eai_pwm/pipeline_store/sources/egostandard,project,pipeline sources/源数据,nonempty,3275423960,50,full_20261027
+same_name,EgoStandard,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/egostandard,projset,action_processed_r1/动作或训练加工,nonempty,57104231765,191,full_20261027
+same_name,EgoStandard,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/egostandard,projset,action_processed_r2/动作或训练加工,nonempty,,,unknown
+same_name,EgoStandard,/share-mixed/projset/eai_pwm/pipeline_store/sources/egostandard,projset,pipeline sources/源数据,nonempty,22719923541819,327494,full_20261027
+same_name,EgoVerse,/share-mixed/project/eai_pwm/datasets/EgoVerse,project,数据集（格式未核验）,nonempty,4023484907736,239437,full_20261027
+same_name,EgoVerse,/share-mixed/project/yhzhang/hand_pose_1023/egoverse,project,姿态/预处理,nonempty,1268201804602,223368,full_20261027
+same_name,EgoVerse,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/egoverse,projset,action_processed_r2/动作或训练加工,nonempty,,,unknown
+same_name,GPIC,/share-mixed/project/eai_pwm/datasets/GPIC,project,数据集（格式未核验）,nonempty,0,2,full_20261027
+same_name,GPIC,/share-mixed/project/eai_pwm/datasets/stanford-vision-lab/gpic,project,数据集（格式未核验）,nonempty,12952181357744,8170,full_20261027
+same_name,GPIC,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_lmdb/gpic,project,prepared/训练打包,nonempty,179100915341,4,full_20261027
+same_name,InternData-A1,/share-mixed/project/eai_pwm/datasets/InternData-A1,project,数据集（格式未核验）,nonempty,6723528570112,168256,full_20261027
+same_name,InternData-A1,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/InternData-A1,projset,action_processed_r2/动作或训练加工,nonempty,295571837068,15601,full_20261027
+same_name,InternData-A1,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/InternData-A1,projset,action_processed_r2_new/动作或训练加工,nonempty,189087937334,3157,full_20261027
+same_name,InternData-A1,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/_provenance/eef_alignment_history/r2/InternData-A1,projset,action_processed_r2/动作或训练加工,nonempty,15193104168,5,large_files_only_20261027
+same_name,InternData-A1,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/_superseded/before-state-v1-20261015T112320.944570Z/readers/InternData-A1,projset,action_processed_r2/动作或训练加工,nonempty,10955456223,2,large_files_only_20261027
+same_name,InternData-A1,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/_work/shared/20261012T085955.955810Z/InternData-A1,projset,action_processed_r2/动作或训练加工,nonempty,6457238982,2,large_files_only_20261027
+same_name,InternData-M1,/share-mixed/project/eai_pwm/datasets/InternData-M1,project,数据集（格式未核验）,nonempty,6114142238552,2492,full_20261027
+same_name,InternData-M1,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/InternData-M1,projset,action_processed_r2/动作或训练加工,nonempty,47045209236,2494,full_20261027
+same_name,InternData-M1,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/InternData-M1,projset,action_processed_r2_new/动作或训练加工,nonempty,31849396658,401,full_20261027
+same_name,InternData-M1,/share-mixed/project/eai_pwm/datasets/download_jt/unzip/interndata_m1,project,解包数据,nonempty,,,unknown
+same_name,InternData-M1,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/_provenance/eef_alignment_history/r2/InternData-M1,projset,action_processed_r2/动作或训练加工,nonempty,1580513760,1,large_files_only_20261027
+same_name,libero,/share-mixed/project/eai_pwm/datasets/libero,project,数据集（格式未核验）,nonempty,4747067600,96,full_20261027
+same_name,libero,/share-mixed/project/gz/benchmark/LIBERO,project,其他,nonempty,105568145188,1669,full_20261027
+same_name,libero,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/libero,projset,action_processed_r1/动作或训练加工,nonempty,4456159420,68,full_20261027
+same_name,libero,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/libero,projset,action_processed_r2/动作或训练加工,nonempty,,,unknown
+same_name,lightwheel,/share-mixed/project/yhzhang/hand_pose_1023/lightwheel,project,姿态/预处理,nonempty,17639194836555,1817658,full_20261027
+same_name,lightwheel,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/lightwheel,projset,action_processed_r2/动作或训练加工,nonempty,,,unknown
+same_name,MolmoBot,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/MolmoBot,projset,action_processed_r1/动作或训练加工,nonempty,14563181847821,19444258,full_20261027
+same_name,MolmoBot,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/_provenance/eef_alignment_history/r1/MolmoBot,projset,action_processed_r2/动作或训练加工,nonempty,1102521771,1,large_files_only_20261027
+same_name,PH2D,/share-mixed/project/eai_pwm/datasets/PH2D,project,数据集（格式未核验）,nonempty,171069060105,9257,full_20261027
+same_name,PH2D,/share-mixed/project/yhzhang/hand_pose_1023/ph2d,project,姿态/预处理,nonempty,,,unknown
+same_name,PH2D,/share-mixed/projset/eai_pwm/datasets/PH2D,projset,数据集（格式未核验）,nonempty,16205406763,3704,full_20261027
+same_name,RoboDojo,/share-mixed/project/gz/benchmark/RoboDojo,project,其他,nonempty,1725398,237,full_20261027
+same_name,RoboDojo,/share-mixed/project/eai_pwm/datasets/action_processed_r1/RoboDojo,project,action_processed_r1/动作或训练加工,nonempty,2896851511,19469,full_20261027
+same_name,RoboDojo,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/RoboDojo,projset,action_processed_r2/动作或训练加工,nonempty,5811618249,28159,full_20261027
+same_name,RoboDojo,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/RoboDojo,projset,action_processed_r2_new/动作或训练加工,nonempty,1411720369,179,full_20261027
+same_name,RoboDojo,/share-mixed/projset/eai_pwm/datasets/action_sft_v1/RoboDojo,projset,action_sft_v1/动作或训练加工,nonempty,894743561374,53056,full_20261027
+same_name,RoboDojo,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo,projset,数据集（格式未核验）,nonempty,870995071195,173,large_files_only_20261027
+same_name,RoboDojo,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/data/RoboDojo,projset,数据集（格式未核验）,nonempty,299247981256,232,large_files_only_20261027
+same_name,RoboMIND2.0,/share-mixed/projset/eai_pwm/datasets/RoboMIND2.0,projset,数据集（格式未核验）,nonempty,6848323500,228,full_20261027
+same_name,RoboMIND2.0,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/RoboMIND2.0,projset,action_processed_r2/动作或训练加工,nonempty,322435257830,97165,full_20261027
+same_name,RoboMIND2.0,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/RoboMIND2.0,projset,action_processed_r2_new/动作或训练加工,nonempty,66483943870,5771,full_20261027
+same_name,RoboMIND2.0,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/_provenance/eef_alignment_history/r2/RoboMIND2.0,projset,action_processed_r2/动作或训练加工,nonempty,2846896586,2,large_files_only_20261027
+same_name,RoboMIND-v1,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/RoboMIND-v1,projset,action_processed_r1/动作或训练加工,nonempty,,,unknown
+same_name,RoboMIND-v1,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/RoboMIND-v1,projset,action_processed_r2/动作或训练加工,nonempty,15615951672,2133,full_20261027
+same_name,RoboMIND-v1,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/RoboMIND-v1,projset,action_processed_r2_new/动作或训练加工,nonempty,6733644277,653,full_20261027
+same_name,xperience,/share-mixed/project/yhzhang/data/xperience,project,数据集（格式未核验）,nonempty,18958364564369,57316,full_20261027
+same_name,xperience,/share-mixed/project/yhzhang/hand_pose_1023/xperience,project,姿态/预处理,nonempty,,,unknown
+same_family,RoboMIND 2,/share-mixed/project/eai_pwm/datasets/RoboMIND2.0-Franka-Part-1,project,数据集（格式未核验）,nonempty,1066878765282,8715,full_20261027
+same_family,RoboMIND 2,/share-mixed/project/eai_pwm/datasets/RoboMIND2.0-Franka-Part-2,project,数据集（格式未核验）,nonempty,732865115594,7742,full_20261027
+same_family,RoboMIND 2,/share-mixed/project/eai_pwm/datasets/RoboMIND2.0-Franka-Part-3,project,数据集（格式未核验）,nonempty,688323169232,8370,full_20261027
+same_family,RoboMIND 2,/share-mixed/project/eai_pwm/datasets/RoboMIND2.0-Franka-Part-4,project,数据集（格式未核验）,nonempty,639338212084,5805,full_20261027
+same_family,RoboMIND 2,/share-mixed/project/eai_pwm/datasets/RoboMIND2.0-Franka-Part-5,project,数据集（格式未核验）,nonempty,565071760202,5164,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/RoboMIND2.0,projset,数据集（格式未核验）,nonempty,6848323500,228,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/RoboMIND2.0-Agilex,projset,数据集（格式未核验）,nonempty,13280177620870,22274,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/RoboMIND2.0-Agilex-mobile,projset,数据集（格式未核验）,nonempty,10233638897775,13952,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/RoboMIND2.0-Ark,projset,数据集（格式未核验）,nonempty,10446247524345,14913,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/RoboMIND2.0-Ark-mobile,projset,数据集（格式未核验）,nonempty,3085840979794,4318,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/RoboMIND2.0-Franka-Part-1,projset,数据集（格式未核验）,nonempty,9567704417903,18686,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/RoboMIND2.0-Franka-Part-2,projset,数据集（格式未核验）,nonempty,9810140847089,22049,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/RoboMIND2.0-Franka-Part-3,projset,数据集（格式未核验）,nonempty,13899908467042,38792,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/RoboMIND2.0-Franka-Part-4,projset,数据集（格式未核验）,nonempty,8691876030362,16127,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/RoboMIND2.0-Franka-Part-5,projset,数据集（格式未核验）,nonempty,8901613079108,17204,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/RoboMIND2.0-Franka-sim,projset,数据集（格式未核验）,nonempty,2143938005726,10694,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/RoboMIND2.0-Tianyi,projset,数据集（格式未核验）,nonempty,1898743250104,7183,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/RoboMIND2.0-Tianyi-mobile,projset,数据集（格式未核验）,nonempty,286750509670,1791,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/RoboMIND2.0-Tienkung,projset,数据集（格式未核验）,nonempty,5848242699555,14789,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/RoboMIND2.0-Tienkung-sim,projset,数据集（格式未核验）,nonempty,194203618791,10418,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/RoboMIND2.0-UR5,projset,数据集（格式未核验）,nonempty,15583794691360,54592,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/RoboMIND2.0-UR5-Dex,projset,数据集（格式未核验）,nonempty,406349796645,1798,full_20261027
+same_family,RoboMIND 2,/share-mixed/project/eai_pwm/pipeline_store/latents/robomind2_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,237624358413,562,full_20261027
+same_family,RoboMIND 2,/share-mixed/project/eai_pwm/pipeline_store/latents/robomind2_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,772569561586,1866,full_20261027
+same_family,RoboMIND 2,/share-mixed/project/eai_pwm/pipeline_store/latents/robomind2_wan2pt2_tokenizer-tsrcfps480-20eb789667fa_v1,project,latent/特征,nonempty,955551558060,3039,full_20261027
+same_family,RoboMIND 2,/share-mixed/project/eai_pwm/pipeline_store/latents/robomind2_wan2pt2_tokenizer-tsrcfpsnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,15183045892,366,full_20261027
+same_family,RoboMIND 2,/share-mixed/project/eai_pwm/pipeline_store/materialized/robomind2_lw2030_v2,project,materialized/加工视频,nonempty,244477375058,15234,full_20261027
+same_family,RoboMIND 2,/share-mixed/project/eai_pwm/pipeline_store/materialized/robomind2_v2,project,materialized/加工视频,nonempty,15859843168731,1367605,full_20261027
+same_family,RoboMIND 2,/share-mixed/project/eai_pwm/pipeline_store/sources/robomind2,project,pipeline sources/源数据,nonempty,28053547293204,1461853,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/RoboMIND2.0-AgileX-EEF-native-v1,projset,action_processed_r1/动作或训练加工,nonempty,71827489876,10703,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/RoboMIND2.0-AgileX-EEF-native-v1-pilot-5d9b184a,projset,action_processed_r1/动作或训练加工,nonempty,1116664998,370,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/RoboMIND2.0-Franka-EEF,projset,action_processed_r1/动作或训练加工,nonempty,15337790542074,847359,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/RoboMIND2.0-Franka-EEF-pilot-d9c5e289,projset,action_processed_r1/动作或训练加工,nonempty,3624252344,218,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/RoboMIND2.0-Franka-sim-EEF-native-v1,projset,action_processed_r1/动作或训练加工,nonempty,391773472795,81124,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/RoboMIND2.0-Franka-sim-EEF-native-v1-pilot-118f06eb,projset,action_processed_r1/动作或训练加工,nonempty,2916205997,522,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/RoboMIND2.0-Franka-sim-EEF-pilot-85acdb0d,projset,action_processed_r1/动作或训练加工,nonempty,,,unknown
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/RoboMIND2.0-Joint,projset,action_processed_r1/动作或训练加工,nonempty,27856006780678,1704217,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/RoboMIND2.0-UR5-EEF-native-v1,projset,action_processed_r1/动作或训练加工,nonempty,4836405315129,399628,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/RoboMIND2.0-UR5-EEF-native-v1-pilot-184e722b,projset,action_processed_r1/动作或训练加工,nonempty,9812660313,816,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/RoboMIND2.0,projset,action_processed_r2/动作或训练加工,nonempty,322435257830,97165,full_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/RoboMIND2.0,projset,action_processed_r2_new/动作或训练加工,nonempty,66483943870,5771,full_20261027
+same_family,RoboMIND 2,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/robomind2_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,29694463432,5,large_files_only_20261027
+same_family,RoboMIND 2,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/robomind2_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,54944138328,11,large_files_only_20261027
+same_family,RoboMIND 2,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/robomind2_wan2pt2_tokenizer-tsrcfps480-20eb789667fa_v1,project,latent/特征,nonempty,152838832040,53,large_files_only_20261027
+same_family,RoboMIND 2,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/robomind2_wan2pt2_tokenizer-tsrcfpsnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,1372991536,1,large_files_only_20261027
+same_family,RoboMIND 2,/share-mixed/project/eai_pwm/pipeline_store/supplement_lw2030c2/latents/robomind2_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,3432227280,1,large_files_only_20261027
+same_family,RoboMIND 2,/share-mixed/project/eai_pwm/pipeline_store/supplement_lw2030c2/latents/robomind2_lw2030_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,20485319336,3,large_files_only_20261027
+same_family,RoboMIND 2,/share-mixed/project/eai_pwm/pipeline_store/supplement_lw2030c2/latents/robomind2_lw2030_wan2pt2_tokenizer-tsrcfps480-20eb789667fa_v1,project,latent/特征,nonempty,21582628472,5,large_files_only_20261027
+same_family,RoboMIND 2,/share-mixed/project/eai_pwm/pipeline_store/supplement_robomind2_b1/latents/robomind2_wan2pt2_tokenizer-tsrcfps480-20eb789667fa_v1,project,latent/特征,nonempty,52485429784,46,large_files_only_20261027
+same_family,RoboMIND 2,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/_provenance/eef_alignment_history/r2/RoboMIND2.0,projset,action_processed_r2/动作或训练加工,nonempty,2846896586,2,large_files_only_20261027
+same_family,OmniVitac,/share-mixed/projset/eai_pwm/datasets/tactile/.OmniVitac_extract_20261021,projset,数据集（格式未核验）,nonempty,99537043006869,151516,full_20261027
+same_family,OmniVitac,/share-mixed/projset/eai_pwm/datasets/tactile/OmniVitac,projset,数据集（格式未核验）,nonempty,1752089925551,20053,full_20261027
+same_family,OmniVitac,/share-mixed/projset/eai_pwm/datasets/tactile/OmniVitac_platform_208546131716604003,projset,数据集（格式未核验）,nonempty,38616022846761,738,full_20261027
+same_family,KOALA-36M,/share-mixed/project/eai_pwm/datasets/koala-36m,project,数据集（格式未核验）,nonempty,48893442042,10,full_20261027
+same_family,KOALA-36M,/share-mixed/project/eai_pwm/data/parquet-data/koala-36m,project,数据集（格式未核验）,nonempty,3255607488,2549,full_20261027
+same_family,KOALA-36M,/share-mixed/project/eai_pwm/datasets/yt43_videos/koala-36m,project,数据集（格式未核验）,nonempty,161155421548,2426,full_20261027
+same_family,KOALA-36M,/share-mixed/project/eai_pwm/pipeline_store/materialized/koala-36m_v2,project,materialized/加工视频,nonempty,138726241713180,17852442,full_20261027
+same_family,KOALA-36M,/share-mixed/project/eai_pwm/pipeline_store/materialized/koala_pilot,project,materialized/加工视频,nonempty,,,unknown
+same_family,KOALA-36M,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_lmdb/koala-36m,project,prepared/训练打包,nonempty,190007116400,17,full_20261027
+same_family,KOALA-36M,/share-mixed/project/liyue/data/parquet-data/koala-36m,project,数据集（格式未核验）,nonempty,3255607488,2549,full_20261027
+same_family,KOALA-36M,/share-mixed/project/eai_pwm/pipeline_store/demo/vae_demo_10k/latents/koala-36m_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,6072162704,2,large_files_only_20261027
+same_family,EgoStandard,/share-mixed/project/eai_pwm/datasets/EgoStandard,project,数据集（格式未核验）,nonempty,0,0,full_20261027
+same_family,EgoStandard,/share-mixed/project/yhzhang/hand_pose_1023/egostandard,project,姿态/预处理,nonempty,28819894387738,2340846,full_20261027
+same_family,EgoStandard,/share-mixed/projset/eai_pwm/datasets/EgoStandard,projset,数据集（格式未核验）,nonempty,49261094728345,333706,full_20261027
+same_family,EgoStandard,/share-mixed/project/eai_pwm/pipeline_store/latents/egostandard_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,,,unknown
+same_family,EgoStandard,/share-mixed/project/eai_pwm/pipeline_store/latents/egostandard_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,6045717387591,8667,full_20261027
+same_family,EgoStandard,/share-mixed/project/eai_pwm/pipeline_store/materialized/egostandard_lw2030_v2,project,materialized/加工视频,nonempty,2788183295267,325181,full_20261027
+same_family,EgoStandard,/share-mixed/project/eai_pwm/pipeline_store/materialized/egostandard_v2,project,materialized/加工视频,nonempty,9115891911798,2042567,full_20261027
+same_family,EgoStandard,/share-mixed/project/eai_pwm/pipeline_store/sources/egostandard,project,pipeline sources/源数据,nonempty,3275423960,50,full_20261027
+same_family,EgoStandard,/share-mixed/projset/eai_pwm/datasets/EgoPro/EgoStandard-body,projset,数据集（格式未核验）,nonempty,42903698044,163,full_20261027
+same_family,EgoStandard,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/egostandard,projset,action_processed_r1/动作或训练加工,nonempty,57104231765,191,full_20261027
+same_family,EgoStandard,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/egostandard,projset,action_processed_r2/动作或训练加工,nonempty,,,unknown
+same_family,EgoStandard,/share-mixed/projset/eai_pwm/pipeline_store/sources/egostandard,projset,pipeline sources/源数据,nonempty,22719923541819,327494,full_20261027
+same_family,EgoStandard,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/egostandard_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,4439509135856,661,large_files_only_20261027
+same_family,EgoStandard,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20b/latents/egostandard_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,89463436304,10,large_files_only_20261027
+same_family,EgoStandard,/share-mixed/project/eai_pwm/pipeline_store/supplement_lw2030c2/latents/egostandard_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,2669956943256,241,large_files_only_20261027
+same_family,Lightwheel,/share-mixed/project/yhzhang/hand_pose_1023/lightwheel,project,姿态/预处理,nonempty,17639194836555,1817658,full_20261027
+same_family,Lightwheel,/share-mixed/projset/eai_pwm/datasets/Lightwheel-Purchased-0901_1,projset,数据集（格式未核验）,nonempty,52560481539676,1351495,full_20261027
+same_family,Lightwheel,/share-mixed/project/eai_pwm/pipeline_store/latents/lightwheel_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,11413674839355,18770,full_20261027
+same_family,Lightwheel,/share-mixed/project/eai_pwm/pipeline_store/materialized/lightwheel_lw2030_v2,project,materialized/加工视频,nonempty,2788713325725,179328,full_20261027
+same_family,Lightwheel,/share-mixed/project/eai_pwm/pipeline_store/materialized/lightwheel_v2,project,materialized/加工视频,nonempty,23349592541886,2439509,full_20261027
+same_family,Lightwheel,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/lightwheel,projset,action_processed_r2/动作或训练加工,nonempty,,,unknown
+same_family,Lightwheel,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/lightwheel_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,79002498960,9,large_files_only_20261027
+same_family,Lightwheel,/share-mixed/project/eai_pwm/pipeline_store/supplement_lw2030c2/latents/lightwheel_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,1560188520744,143,large_files_only_20261027
+same_family,AgiBotWorld,/share-mixed/project/eai_pwm/datasets/AgiBotWorld-Beta,project,数据集（格式未核验）,nonempty,48104148820097,6527,full_20261027
+same_family,AgiBotWorld,/share-mixed/projset/eai_pwm/datasets/AgiBotWorld2026,projset,数据集（格式未核验）,nonempty,4996335547058,175,full_20261027
+same_family,AgiBotWorld,/share-mixed/project/eai_pwm/pipeline_store/latents/agibot-world_lw2030_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,572359187341,358,full_20261027
+same_family,AgiBotWorld,/share-mixed/project/eai_pwm/pipeline_store/latents/agibot-world_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,3707596272323,6181,full_20261027
+same_family,AgiBotWorld,/share-mixed/project/eai_pwm/pipeline_store/materialized/agibot-world_lw2030_v2,project,materialized/加工视频,nonempty,,,unknown
+same_family,AgiBotWorld,/share-mixed/project/eai_pwm/pipeline_store/materialized/agibot-world_v2,project,materialized/加工视频,nonempty,4977772238383,1336684,full_20261027
+same_family,AgiBotWorld,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_lmdb/agibot_world_interleave,project,prepared/训练打包,nonempty,3562678658,8,full_20261027
+same_family,AgiBotWorld,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_media_v1_20260808/agibot_world_interleave,project,prepared/训练打包,nonempty,75823793088,1005918,full_20261027
+same_family,AgiBotWorld,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/AgiBotWorld-Beta,projset,action_processed_r1/动作或训练加工,nonempty,11001229890824,1357051,full_20261027
+same_family,AgiBotWorld,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/AgiBotWorld2026,projset,action_processed_r1/动作或训练加工,nonempty,15119114661962,221347,full_20261027
+same_family,AgiBotWorld,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/AgiBotWorld-Beta,projset,action_processed_r2/动作或训练加工,nonempty,202491927338,10867,full_20261027
+same_family,AgiBotWorld,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/AgiBotWorld2026,projset,action_processed_r2/动作或训练加工,nonempty,16234552473,4479,full_20261027
+same_family,AgiBotWorld,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/AgiBotWorld-Beta,projset,action_processed_r2_new/动作或训练加工,nonempty,111237566011,5547,full_20261027
+same_family,AgiBotWorld,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/AgiBotWorld2026,projset,action_processed_r2_new/动作或训练加工,nonempty,11701803768,735,full_20261027
+same_family,AgiBotWorld,/share-mixed/project/eai_pwm/datasets/download_jt/unzip/AgiBotWorld-Beta,project,解包数据,nonempty,,,unknown
+same_family,AgiBotWorld,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/agibot-world_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,1372655008328,260,large_files_only_20261027
+same_family,AgiBotWorld,/share-mixed/project/eai_pwm/pipeline_store/demo/vae_demo_10k/latents/agibot-world_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,4873547904,2,large_files_only_20261027
+same_family,AgiBotWorld,/share-mixed/projset/eai_pwm/datasets/.agibot_proxy21_multitest/data/others/huggingface/agibot-world,projset,数据集（格式未核验）,nonempty,32234132846,8,large_files_only_20261027
+same_family,AgiBotWorld,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/_provenance/eef_alignment_history/r2/AgiBotWorld-Beta,projset,action_processed_r2/动作或训练加工,nonempty,1609133328,1,large_files_only_20261027
+same_family,AgiBotWorld,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/_work/remove-agibot-dexhand-20261010-v1/previous/AgiBotWorld-Beta,projset,action_processed_r2/动作或训练加工,nonempty,1426952533,1,large_files_only_20261027
+same_family,EgoLive,/share-mixed/project/yhzhang/hand_pose_1023/egolive,project,姿态/预处理,nonempty,12804582456476,582163,full_20261027
+same_family,EgoLive,/share-mixed/projset/eai_pwm/datasets/EgoLive,projset,数据集（格式未核验）,nonempty,35492502671550,199655,full_20261027
+same_family,EgoLive,/share-mixed/project/eai_pwm/pipeline_store/latents/egolive_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,475315494980,290,full_20261027
+same_family,EgoLive,/share-mixed/project/eai_pwm/pipeline_store/latents/egolive_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,2581747891902,4312,full_20261027
+same_family,EgoLive,/share-mixed/project/eai_pwm/pipeline_store/materialized/egolive_lw2030_v2,project,materialized/加工视频,nonempty,,,unknown
+same_family,EgoLive,/share-mixed/project/eai_pwm/pipeline_store/materialized/egolive_v2,project,materialized/加工视频,nonempty,11491089206208,1023045,full_20261027
+same_family,EgoLive,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/egolive,projset,action_processed_r2/动作或训练加工,nonempty,,,unknown
+same_family,EgoLive,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/egolive_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,814079314112,114,large_files_only_20261027
+same_family,EgoLive,/share-mixed/project/eai_pwm/pipeline_store/supplement_v04/latents/egolive_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,54596255928,23,large_files_only_20261027
+same_family,EgoLive,/share-mixed/project/eai_pwm/pipeline_store/demo/vae_demo_10k/latents/egolive_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,4735013808,2,large_files_only_20261027
+same_family,RoboMIND 1,/share-mixed/project/eai_pwm/datasets/RoboMIND,project,数据集（格式未核验）,nonempty,11838096777545,1403,full_20261027
+same_family,RoboMIND 1,/share-mixed/projset/eai_pwm/datasets/RoboMIND,projset,数据集（格式未核验）,nonempty,11838096777545,1403,full_20261027
+same_family,RoboMIND 1,/share-mixed/project/eai_pwm/datasets/action_processed_r1/RoboMIND-v1-native-work,project,action_processed_r1/动作或训练加工,nonempty,10040143926921,583004,full_20261027
+same_family,RoboMIND 1,/share-mixed/project/eai_pwm/datasets/action_processed_r1/RoboMIND-v1-native-work-pilot,project,action_processed_r1/动作或训练加工,nonempty,2094298626,132,full_20261027
+same_family,RoboMIND 1,/share-mixed/project/eai_pwm/pipeline_store/latents/robomind1_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,77287512420,190,full_20261027
+same_family,RoboMIND 1,/share-mixed/project/eai_pwm/pipeline_store/latents/robomind1_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,241725489430,750,full_20261027
+same_family,RoboMIND 1,/share-mixed/project/eai_pwm/pipeline_store/materialized/robomind1_lw2030_v2,project,materialized/加工视频,nonempty,12107214577,773,full_20261027
+same_family,RoboMIND 1,/share-mixed/project/eai_pwm/pipeline_store/materialized/robomind1_v2,project,materialized/加工视频,nonempty,876501853404,147939,full_20261027
+same_family,RoboMIND 1,/share-mixed/project/eai_pwm/pipeline_store/sources/robomind1,project,pipeline sources/源数据,nonempty,2181529232016,350846,full_20261027
+same_family,RoboMIND 1,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/RoboMIND-v1,projset,action_processed_r1/动作或训练加工,nonempty,,,unknown
+same_family,RoboMIND 1,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/RoboMIND-v1-AgileX,projset,action_processed_r1/动作或训练加工,nonempty,5197371499698,49543,full_20261027
+same_family,RoboMIND 1,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/RoboMIND-v1-Franka,projset,action_processed_r1/动作或训练加工,nonempty,15534664387870,432705,full_20261027
+same_family,RoboMIND 1,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/RoboMIND-v1-TienKung-Gello,projset,action_processed_r1/动作或训练加工,nonempty,1345330637840,19234,full_20261027
+same_family,RoboMIND 1,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/RoboMIND-v1-TienKung-Xsens,projset,action_processed_r1/动作或训练加工,nonempty,1688948084385,18424,full_20261027
+same_family,RoboMIND 1,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/RoboMIND-v1-TienKung-prod1,projset,action_processed_r1/动作或训练加工,nonempty,677177558100,8907,full_20261027
+same_family,RoboMIND 1,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/RoboMIND-v1-UR,projset,action_processed_r1/动作或训练加工,nonempty,1119562079540,77223,full_20261027
+same_family,RoboMIND 1,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/RoboMIND-v1-intake,projset,action_processed_r1/动作或训练加工,nonempty,2182134468,609,full_20261027
+same_family,RoboMIND 1,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/RoboMIND-v1,projset,action_processed_r2/动作或训练加工,nonempty,15615951672,2133,full_20261027
+same_family,RoboMIND 1,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/RoboMIND-v1,projset,action_processed_r2_new/动作或训练加工,nonempty,6733644277,653,full_20261027
+same_family,RoboMIND 1,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/robomind1_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,8521161632,2,large_files_only_20261027
+same_family,RoboMIND 1,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/robomind1_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,10245163416,2,large_files_only_20261027
+same_family,RoboMIND 1,/share-mixed/project/eai_pwm/pipeline_store/supplement_lw2030c2/latents/robomind1_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,4191821024,1,large_files_only_20261027
+same_family,RoboMIND 1,/share-mixed/project/eai_pwm/pipeline_store/supplement_lw2030c2/latents/robomind1_lw2030_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,1906584608,1,large_files_only_20261027
+same_family,Nymeria,/share-mixed/projset/materialized/nymeria_v2,projset,materialized/加工视频,nonempty,780914131411,167810,full_20261027
+same_family,Nymeria,/share-mixed/projset/eai_pwm/datasets/Nymeria,projset,数据集（格式未核验）,nonempty,54099820406916,58586,full_20261027
+same_family,Nymeria,/share-mixed/projset/materialized/_pilot/nymeria_p1,projset,materialized/加工视频,nonempty,34236260,12,full_20261027
+same_family,Nymeria,/share-mixed/project/eai_pwm/pipeline_store/latents/nymeria_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,725352346799,1394,full_20261027
+same_family,Egocentric-10K,/share-mixed/projset/eai_pwm/datasets/Egocentric-10K-intrinsics,projset,数据集（格式未核验）,nonempty,7933768,4311,full_20261027
+same_family,Egocentric-10K,/share-mixed/projset/eai_pwm/datasets/Egocentric-10K-unpacked,projset,数据集（格式未核验）,nonempty,17962617125635,403924,full_20261027
+same_family,Egocentric-10K,/share-mixed/project/eai_pwm/pipeline_store/latents/egocentric-10k_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,148691713654,76,full_20261027
+same_family,Egocentric-10K,/share-mixed/project/eai_pwm/pipeline_store/latents/egocentric-10k_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,5240141176019,8963,full_20261027
+same_family,Egocentric-10K,/share-mixed/project/eai_pwm/pipeline_store/materialized/egocentric-10k_lw2030_v2,project,materialized/加工视频,nonempty,1984872561525,240296,full_20261027
+same_family,Egocentric-10K,/share-mixed/project/eai_pwm/pipeline_store/materialized/egocentric-10k_v2,project,materialized/加工视频,nonempty,20602221967408,5081508,full_20261027
+same_family,Egocentric-10K,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/egocentric-10k_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,251941249448,36,large_files_only_20261027
+same_family,Ego-Exo4D,/share-mixed/project/yhzhang/data/ego_exo4d,project,数据集（格式未核验）,nonempty,25879526208197,202230,full_20261027
+same_family,Ego-Exo4D,/share-mixed/projset/eai_pwm/datasets/Ego-Exo4D,projset,数据集（格式未核验）,nonempty,10715144279936,205787,full_20261027
+same_family,Ego-Exo4D,/share-mixed/project/eai_pwm/pipeline_store/latents/ego-exo4d_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,329210088602,510,full_20261027
+same_family,Ego-Exo4D,/share-mixed/project/eai_pwm/pipeline_store/materialized/ego-exo4d_v2,project,materialized/加工视频,nonempty,1307197256496,74895,full_20261027
+same_family,OpenAoE-2000h,/share-mixed/project/yhzhang/data/OpenAoE-2000h-raw,project,数据集（格式未核验）,nonempty,7753598747073,258805,full_20261027
+same_family,OpenAoE-2000h,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h,projset,数据集（格式未核验）,nonempty,11841618365906,212759,full_20261027
+same_family,OpenAoE-2000h,/share-mixed/project/eai_pwm/pipeline_store/latents/openaoe-2000h_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,304070243348,385,full_20261027
+same_family,OpenAoE-2000h,/share-mixed/project/eai_pwm/pipeline_store/latents/openaoe-2000h_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,1420121395646,2391,full_20261027
+same_family,OpenAoE-2000h,/share-mixed/project/eai_pwm/pipeline_store/materialized/openaoe-2000h_lw2030_v2,project,materialized/加工视频,nonempty,,,unknown
+same_family,OpenAoE-2000h,/share-mixed/project/eai_pwm/pipeline_store/materialized/openaoe-2000h_v2,project,materialized/加工视频,nonempty,5329218928573,502545,full_20261027
+same_family,OpenAoE-2000h,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/openaoe-2000h_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,408622947392,58,large_files_only_20261027
+same_family,OpenAoE-2000h,/share-mixed/project/eai_pwm/pipeline_store/supplement_v04/latents/openaoe-2000h_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,200415429832,86,large_files_only_20261027
+same_family,OpenAoE-2000h,/share-mixed/project/eai_pwm/pipeline_store/demo/vae_demo_10k/latents/openaoe-2000h_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,4881557968,2,large_files_only_20261027
+same_family,GPIC,/share-mixed/project/eai_pwm/datasets/GPIC,project,数据集（格式未核验）,nonempty,0,2,full_20261027
+same_family,GPIC,/share-mixed/project/eai_pwm/datasets/gpic_image_caption_small,project,数据集（格式未核验）,nonempty,3248652022,25291,full_20261027
+same_family,GPIC,/share-mixed/project/eai_pwm/prepared_datasets/gpic_train_v1_94_incremental,project,prepared/训练打包,nonempty,12783731745826,100055905,full_20261027
+same_family,GPIC,/share-mixed/project/eai_pwm/prepared_datasets/gpic_v1_94_smoke_00000,project,prepared/训练打包,nonempty,1631061789,12654,full_20261027
+same_family,GPIC,/share-mixed/project/eai_pwm/datasets/stanford-vision-lab/gpic,project,数据集（格式未核验）,nonempty,12952181357744,8170,full_20261027
+same_family,GPIC,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_lmdb/gpic,project,prepared/训练打包,nonempty,179100915341,4,full_20261027
+same_family,MolmoBot,/share-mixed/projset/eai_pwm/datasets/molmobot-data_20260914,projset,数据集（格式未核验）,nonempty,10319873675044,14399,full_20261027
+same_family,MolmoBot,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/MolmoBot,projset,action_processed_r1/动作或训练加工,nonempty,14563181847821,19444258,full_20261027
+same_family,MolmoBot,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/_work/molmobot_stage1_multiview_20261009_v1,projset,action_processed_r2/动作或训练加工,nonempty,2566594560,1,large_files_only_20261027
+same_family,MolmoBot,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/_provenance/eef_alignment_history/r1/MolmoBot,projset,action_processed_r2/动作或训练加工,nonempty,1102521771,1,large_files_only_20261027
+same_family,Action100M,/share-mixed/project/eai_pwm/datasets/Action100M,project,数据集（格式未核验）,nonempty,39516671163,127,full_20261027
+same_family,Action100M,/share-mixed/project/eai_pwm/data/parquet-data/action100m,project,数据集（格式未核验）,nonempty,1425148646,1483,full_20261027
+same_family,Action100M,/share-mixed/project/eai_pwm/pipeline_store/materialized/a100m_pilot,project,materialized/加工视频,nonempty,,,unknown
+same_family,Action100M,/share-mixed/project/eai_pwm/pipeline_store/materialized/a100m_pilot2,project,materialized/加工视频,nonempty,,,unknown
+same_family,Action100M,/share-mixed/project/eai_pwm/pipeline_store/materialized/a100m_pilot4,project,materialized/加工视频,nonempty,,,unknown
+same_family,Action100M,/share-mixed/project/eai_pwm/pipeline_store/materialized/action100m_v2,project,materialized/加工视频,nonempty,22363478649607,6592396,full_20261027
+same_family,Action100M,/share-mixed/project/eai_pwm/prepared_datasets/pwm_reference_lmdb/action100m,project,prepared/训练打包,nonempty,87666540589,14,full_20261027
+same_family,Action100M,/share-mixed/project/liyue/data/parquet-data/action100m,project,数据集（格式未核验）,nonempty,1425148646,1483,full_20261027
+same_family,Action100M,/share-mixed/project/eai_pwm/pipeline_store/demo/vae_demo_10k/latents/action100m_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,6508066016,2,large_files_only_20261027
+same_family,OpenNeoData,/share-mixed/project/eai_pwm/datasets/OpenNeoData_20260915,project,数据集（格式未核验）,nonempty,9065374857309,78290,full_20261027
+same_family,OpenNeoData,/share-mixed/project/eai_pwm/datasets/action_processed_r2/OpenNeoData,project,action_processed_r2/动作或训练加工,nonempty,110190217499,5707,full_20261027
+same_family,OpenNeoData,/share-mixed/project/eai_pwm/datasets/tactile/OpenNeoData_action_20261025_v1,project,数据集（格式未核验）,nonempty,248117417597,7095,full_20261027
+same_family,OpenNeoData,/share-mixed/project/eai_pwm/datasets/tactile/OpenNeoData_copy_20261025,project,数据集（格式未核验）,nonempty,3320951054,35872,full_20261027
+same_family,OpenNeoData,/share-mixed/projset/eai_pwm/datasets/tactile/OpenNeoData_20260915,projset,数据集（格式未核验）,nonempty,9069946921682,78322,full_20261027
+same_family,OpenNeoData,/share-mixed/projset/eai_pwm/datasets/tactile/OpenNeoData_action_20261025_v1,projset,数据集（格式未核验）,nonempty,246502015948,6945,full_20261027
+same_family,OpenNeoData,/share-mixed/projset/eai_pwm/datasets/tactile/OpenNeoData_copy_20261025,projset,数据集（格式未核验）,nonempty,2003629835,35884,full_20261027
+same_family,OpenNeoData,/share-mixed/projset/eai_pwm/datasets/tactile/OpenNeoData_legacy_20261025,projset,数据集（格式未核验）,nonempty,618968377125,4078492,full_20261027
+same_family,OpenNeoData,/share-mixed/projset/eai_pwm/datasets/tactile/OpenNeoData_r2_gpu_20261025_batch01,projset,数据集（格式未核验）,nonempty,303541060198,1293128,full_20261027
+same_family,Paxini-Omnisharing,/share-mixed/project/eai_pwm/datasets/Paxini-Omnisharing,project,数据集（格式未核验）,nonempty,8656316542214,44211,full_20261027
+same_family,Paxini-Omnisharing,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/Paxini-Omnisharing,projset,action_processed_r1/动作或训练加工,nonempty,722785766243,255582,full_20261027
+same_family,Paxini-Omnisharing,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/Paxini-Omnisharing,projset,action_processed_r2/动作或训练加工,nonempty,19318069420,1343,full_20261027
+same_family,Paxini-Omnisharing,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/Paxini-Omnisharing.pre-camera-fix-20260928,projset,action_processed_r2/动作或训练加工,nonempty,6228311066,654,full_20261027
+same_family,Paxini-Omnisharing,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/Paxini-Omnisharing,projset,action_processed_r2_new/动作或训练加工,nonempty,19317950311,1337,full_20261027
+same_family,Paxini-Omnisharing,/share-mixed/projset/eai_pwm/datasets/action_processed_r3/Paxini-Omnisharing,projset,action_processed_r3/动作或训练加工,nonempty,115501788277,127120,full_20261027
+same_family,Paxini-Omnisharing,/share-mixed/projset/eai_pwm/paxini_cleaning/source/Paxini-Omnisharing,projset,其他,nonempty,9708534133237,45119,full_20261027
+same_family,EgoPro,/share-mixed/project/yhzhang/hand_pose_1023/egopro,project,姿态/预处理,nonempty,4127650808452,280611,full_20261027
+same_family,EgoPro,/share-mixed/projset/eai_pwm/datasets/EgoPro,projset,数据集（格式未核验）,nonempty,12291039861191,31470,full_20261027
+same_family,EgoPro,/share-mixed/project/eai_pwm/pipeline_store/latents/egopro_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,920475049703,1141,full_20261027
+same_family,EgoPro,/share-mixed/project/eai_pwm/pipeline_store/materialized/egopro_lw2030_v2,project,materialized/加工视频,nonempty,346897639601,41639,full_20261027
+same_family,EgoPro,/share-mixed/project/eai_pwm/pipeline_store/materialized/egopro_v2,project,materialized/加工视频,nonempty,785886786006,171579,full_20261027
+same_family,EgoPro,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/egopro,projset,action_processed_r2/动作或训练加工,nonempty,,,unknown
+same_family,EgoPro,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/egopro_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,13603303704,2,large_files_only_20261027
+same_family,EgoPro,/share-mixed/project/eai_pwm/pipeline_store/supplement_E/latents/egopro_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,20629954576,3,large_files_only_20261027
+same_family,EgoPro,/share-mixed/project/eai_pwm/pipeline_store/supplement_lw2030c2/latents/egopro_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,320615426168,29,large_files_only_20261027
+same_family,EgoPro,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_168718_seg_1/ego_process,projset,数据集（格式未核验）,nonempty,1156392638,1,large_files_only_20261027
+same_family,EgoPro,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_170166_seg_1/ego_process,projset,数据集（格式未核验）,nonempty,1152175957,1,large_files_only_20261027
+same_family,EgoPro,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_170173_seg_5/ego_process,projset,数据集（格式未核验）,nonempty,1117040123,1,large_files_only_20261027
+same_family,EgoPro,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_173071_seg_11/ego_process,projset,数据集（格式未核验）,nonempty,1148059657,1,large_files_only_20261027
+same_family,EgoPro,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_174008_seg_5/ego_process,projset,数据集（格式未核验）,nonempty,1087976344,1,large_files_only_20261027
+same_family,EgoPro,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_174014_seg_16/ego_process,projset,数据集（格式未核验）,nonempty,1113904297,1,large_files_only_20261027
+same_family,EgoPro,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_174015_seg_3/ego_process,projset,数据集（格式未核验）,nonempty,1122412070,1,large_files_only_20261027
+same_family,EgoPro,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_174166_seg_1/ego_process,projset,数据集（格式未核验）,nonempty,1285039722,1,large_files_only_20261027
+same_family,EgoPro,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_177484_seg_11/ego_process,projset,数据集（格式未核验）,nonempty,1449339789,1,large_files_only_20261027
+same_family,EgoPro,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_180900_seg_21/ego_process,projset,数据集（格式未核验）,nonempty,1462518426,1,large_files_only_20261027
+same_family,EgoPro,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_187207_seg_7/ego_process,projset,数据集（格式未核验）,nonempty,1100245706,1,large_files_only_20261027
+same_family,EgoPro,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_188377_seg_1/ego_process,projset,数据集（格式未核验）,nonempty,1262795122,1,large_files_only_20261027
+same_family,EgoPro,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_188573_seg_6/ego_process,projset,数据集（格式未核验）,nonempty,1180965684,1,large_files_only_20261027
+same_family,EgoPro,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_189588_seg_1/ego_process,projset,数据集（格式未核验）,nonempty,1225695435,1,large_files_only_20261027
+same_family,EgoPro,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_189625_seg_31/ego_process,projset,数据集（格式未核验）,nonempty,1433460623,1,large_files_only_20261027
+same_family,EgoPro,/share-mixed/projset/eai_pwm/datasets/OpenAoE-2000h/raw_191762_seg_21/ego_process,projset,数据集（格式未核验）,nonempty,1390630476,1,large_files_only_20261027
+same_family,OpenLoong,/share-mixed/projset/eai_pwm/datasets/tactile/OpenLoong-Community_visuo-tactile,projset,数据集（格式未核验）,nonempty,17249460283115,9250,full_20261027
+same_family,OpenLoong,/share-mixed/project/eai_pwm/datasets/OpenLong-tactile/data/OpenLoong-Community_visuo-tactile,project,数据集（格式未核验）,nonempty,2455108912,2,large_files_only_20261027
+same_family,InternData A1,/share-mixed/project/eai_pwm/datasets/InternData-A1,project,数据集（格式未核验）,nonempty,6723528570112,168256,full_20261027
+same_family,InternData A1,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/InternDataA1-Franka-EEF,projset,action_processed_r1/动作或训练加工,nonempty,333446146278,3834,full_20261027
+same_family,InternData A1,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/InternDataA1-Franka-Joint,projset,action_processed_r1/动作或训练加工,nonempty,330610733206,2515,full_20261027
+same_family,InternData A1,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/InternDataA1-Genie1-EEF,projset,action_processed_r1/动作或训练加工,nonempty,168257359335,3654,full_20261027
+same_family,InternData A1,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/InternDataA1-Genie1-Joint,projset,action_processed_r1/动作或训练加工,nonempty,167020167173,2468,full_20261027
+same_family,InternData A1,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/InternDataA1-Lift2-EEF,projset,action_processed_r1/动作或训练加工,nonempty,934443520883,9468,full_20261027
+same_family,InternData A1,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/InternDataA1-Lift2-Joint,projset,action_processed_r1/动作或训练加工,nonempty,912802614281,6093,full_20261027
+same_family,InternData A1,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/InternDataA1-SplitAloha-EEF,projset,action_processed_r1/动作或训练加工,nonempty,860430163119,8530,full_20261027
+same_family,InternData A1,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/InternDataA1-SplitAloha-Joint,projset,action_processed_r1/动作或训练加工,nonempty,850700043840,5694,full_20261027
+same_family,InternData A1,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/InternData-A1,projset,action_processed_r2/动作或训练加工,nonempty,295571837068,15601,full_20261027
+same_family,InternData A1,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/InternData-A1,projset,action_processed_r2_new/动作或训练加工,nonempty,189087937334,3157,full_20261027
+same_family,InternData A1,/share-mixed/project/eai_pwm/datasets/download_jt/unzip/interndata_a1_real,project,解包数据,nonempty,,,unknown
+same_family,InternData A1,/share-mixed/project/eai_pwm/datasets/download_jt/unzip/interndata_a1_sim_lerobotv30,project,解包数据,nonempty,,,unknown
+same_family,InternData A1,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/_provenance/eef_alignment_history/r2/InternData-A1,projset,action_processed_r2/动作或训练加工,nonempty,15193104168,5,large_files_only_20261027
+same_family,InternData A1,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/_superseded/before-state-v1-20261015T112320.944570Z/readers/InternData-A1,projset,action_processed_r2/动作或训练加工,nonempty,10955456223,2,large_files_only_20261027
+same_family,InternData A1,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/_work/shared/20261012T085955.955810Z/InternData-A1,projset,action_processed_r2/动作或训练加工,nonempty,6457238982,2,large_files_only_20261027
+same_family,RealOmin,/share-mixed/projset/eai_pwm/datasets/RealOmin-OpenData,projset,数据集（格式未核验）,nonempty,5641512318311,78923,full_20261027
+same_family,RealOmin,/share-mixed/project/eai_pwm/datasets/action_processed_r1/RealOmin-OpenData,project,action_processed_r1/动作或训练加工,nonempty,5572063541925,628096,full_20261027
+same_family,RoboCOIN,/share-mixed/project/eai_pwm/datasets/download_jt/RoboCOIN,project,数据集（格式未核验）,nonempty,6581872780496,1231195,full_20261027
+same_family,RoboCOIN,/share-mixed/project/eai_pwm/pipeline_store/latents/robocoin_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,73110737662,42,full_20261027
+same_family,RoboCOIN,/share-mixed/project/eai_pwm/pipeline_store/latents/robocoin_lw2030_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,23463735411,26,full_20261027
+same_family,RoboCOIN,/share-mixed/project/eai_pwm/pipeline_store/latents/robocoin_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,607528445420,1066,full_20261027
+same_family,RoboCOIN,/share-mixed/project/eai_pwm/pipeline_store/latents/robocoin_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,995828836833,2571,full_20261027
+same_family,RoboCOIN,/share-mixed/project/eai_pwm/pipeline_store/materialized/robocoin_lw2030_v2,project,materialized/加工视频,nonempty,215674292594,48888,full_20261027
+same_family,RoboCOIN,/share-mixed/project/eai_pwm/pipeline_store/materialized/robocoin_v2,project,materialized/加工视频,nonempty,2198240683550,738276,full_20261027
+same_family,RoboCOIN,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/robocoin_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,178574859208,26,large_files_only_20261027
+same_family,RoboCOIN,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/robocoin_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,77088345576,15,large_files_only_20261027
+same_family,RoboCOIN,/share-mixed/project/eai_pwm/pipeline_store/supplement_lw2030c2/latents/robocoin_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,106836370768,10,large_files_only_20261027
+same_family,RoboCOIN,/share-mixed/project/eai_pwm/pipeline_store/supplement_lw2030c2/latents/robocoin_lw2030_wan2pt2_tokenizer-tnative640x480-20eb789667fa_v1,project,latent/特征,nonempty,149412414728,17,large_files_only_20261027
+same_family,DROID,/share-mixed/project/eai_pwm/datasets/Cosmos3-DROID,project,数据集（格式未核验）,nonempty,758395759761,7595,full_20261027
+same_family,DROID,/share-mixed/project/eai_pwm/datasets/DROID,project,数据集（格式未核验）,nonempty,2193142256619,2917,full_20261027
+same_family,DROID,/share-mixed/project/eai_pwm/datasets/droid_raw,project,数据集（格式未核验）,nonempty,5488805507495,520206,full_20261027
+same_family,DROID,/share-mixed/project/liyue/data/Cosmos3-DROID-golden-5c11a20,project,数据集（格式未核验）,nonempty,618018919,7,full_20261027
+same_family,DROID,/share-mixed/project/eai_pwm/pipeline_store/materialized/droid_v2,project,materialized/加工视频,nonempty,,,unknown
+same_family,DROID,/share-mixed/project/gz/trekon_data/sources/droid_1.0.1_lerobot_v3_20260119,project,pipeline sources/源数据,nonempty,358391694635,864,full_20261027
+same_family,DROID,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/Cosmos3-DROID,projset,action_processed_r1/动作或训练加工,nonempty,6283070098,171,full_20261027
+same_family,DROID,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/Cosmos3-DROID,projset,action_processed_r2/动作或训练加工,nonempty,58782612563,1169763,full_20261027
+same_family,DROID,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/Cosmos3-DROID-model-outcome-backup-20260919,projset,action_processed_r2/动作或训练加工,nonempty,10654122189,215569,full_20261027
+same_family,DROID,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/Cosmos3-DROID,projset,action_processed_r2_new/动作或训练加工,nonempty,7181228101,167,full_20261027
+same_family,Galaxea,/share-mixed/project/eai_pwm/datasets/Galaxea-Open-World-Dataset_20260826,project,数据集（格式未核验）,nonempty,12363,2,full_20261027
+same_family,Galaxea,/share-mixed/projset/eai_pwm/datasets/Galaxea-Open-World-Dataset_20260826_hf,projset,数据集（格式未核验）,nonempty,2867674767299,701,full_20261027
+same_family,Galaxea,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/Galaxea,projset,action_processed_r1/动作或训练加工,nonempty,5734815559706,206356,full_20261027
+same_family,Galaxea,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/Galaxea,projset,action_processed_r2/动作或训练加工,nonempty,3562200624,1332,full_20261027
+same_family,Galaxea,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/Galaxea,projset,action_processed_r2_new/动作或训练加工,nonempty,3435529412,1322,full_20261027
+same_family,Galaxea,/share-mixed/project/eai_pwm/datasets/download_jt/RoboTwin2.0/cotrain_ckpt/GalaxeaVLA,project,数据集（格式未核验）,nonempty,12060833291,1,large_files_only_20261027
+same_family,Galaxea,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914/ckpt/RoboDojo/GalaxeaVLA,projset,数据集（格式未核验）,nonempty,101441469876,6,large_files_only_20261027
+same_family,RoboDojo,/share-mixed/project/gz/benchmark/RoboDojo,project,其他,nonempty,1725398,237,full_20261027
+same_family,RoboDojo,/share-mixed/project/gz/benchmark/robodojo_command50,project,其他,nonempty,2405897,319,full_20261027
+same_family,RoboDojo,/share-mixed/project/gz/benchmark/robodojo_command50_firstframe_20261022,project,其他,nonempty,71076387,109,full_20261027
+same_family,RoboDojo,/share-mixed/project/gz/benchmark/robodojo_command_prompt_v2,project,其他,nonempty,66111082,378,full_20261027
+same_family,RoboDojo,/share-mixed/project/gz/benchmark/robodojo_dense_showcase50,project,其他,nonempty,870891572,829,full_20261027
+same_family,RoboDojo,/share-mixed/project/gz/benchmark/robodojo_jitter_diagnosis,project,其他,nonempty,780938,6,full_20261027
+same_family,RoboDojo,/share-mixed/project/gz/benchmark/robodojo_machine4_eval,project,其他,nonempty,21016993823,95900,full_20261027
+same_family,RoboDojo,/share-mixed/project/gz/benchmark/robodojo_prediction_predecode_20261023_01,project,其他,nonempty,954858350,14180,full_20261027
+same_family,RoboDojo,/share-mixed/project/gz/benchmark/robodojo_prediction_web,project,其他,nonempty,2280885204,34871,full_20261027
+same_family,RoboDojo,/share-mixed/project/gz/benchmark/robodojo_pwm_eval,project,其他,nonempty,48754825028,78377,full_20261027
+same_family,RoboDojo,/share-mixed/project/gz/benchmark/robodojo_results_web,project,其他,nonempty,6998053,110,full_20261027
+same_family,RoboDojo,/share-mixed/project/gz/benchmark/robodojo_results_web_newcommand50,project,其他,nonempty,873500417,406,full_20261027
+same_family,RoboDojo,/share-mixed/project/gz/benchmark/robodojo_xr1_eval,project,其他,nonempty,11859550141,46604,full_20261027
+same_family,RoboDojo,/share-mixed/projset/eai_pwm/datasets/RoboDojo_20260914,projset,数据集（格式未核验）,nonempty,7581782785805,71125,full_20261027
+same_family,RoboDojo,/share-mixed/project/eai_pwm/datasets/action_processed_r1/RoboDojo,project,action_processed_r1/动作或训练加工,nonempty,2896851511,19469,full_20261027
+same_family,RoboDojo,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/RoboDojo,projset,action_processed_r2/动作或训练加工,nonempty,5811618249,28159,full_20261027
+same_family,RoboDojo,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/RoboDojo,projset,action_processed_r2_new/动作或训练加工,nonempty,1411720369,179,full_20261027
+same_family,RoboDojo,/share-mixed/projset/eai_pwm/datasets/action_sft_v1/RoboDojo,projset,action_sft_v1/动作或训练加工,nonempty,894743561374,53056,full_20261027
+same_family,EgoDex,/share-mixed/project/yhzhang/data/EgoDex,project,数据集（格式未核验）,nonempty,1556917666818,1289860,full_20261027
+same_family,EgoDex,/share-mixed/projset/eai_pwm/datasets/EgoDex,projset,数据集（格式未核验）,nonempty,2112082637329,676469,full_20261027
+same_family,EgoDex,/share-mixed/project/eai_pwm/pipeline_store/latents/egodex_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,193507543914,120,full_20261027
+same_family,EgoDex,/share-mixed/project/eai_pwm/pipeline_store/latents/egodex_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,1285695420922,1899,full_20261027
+same_family,EgoDex,/share-mixed/project/eai_pwm/pipeline_store/materialized/egodex_lw2030_v2,project,materialized/加工视频,nonempty,,,unknown
+same_family,EgoDex,/share-mixed/project/eai_pwm/pipeline_store/materialized/egodex_v2,project,materialized/加工视频,nonempty,3086566114526,944712,full_20261027
+same_family,EgoDex,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/egodex,projset,action_processed_r2/动作或训练加工,nonempty,,,unknown
+same_family,EgoDex,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/egodex_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,297536761312,42,large_files_only_20261027
+same_family,EgoDex,/share-mixed/project/eai_pwm/pipeline_store/demo/vae_demo_10k/latents/egodex_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,5459016320,2,large_files_only_20261027
+same_family,InternData M1,/share-mixed/project/eai_pwm/datasets/InternData-M1,project,数据集（格式未核验）,nonempty,6114142238552,2492,full_20261027
+same_family,InternData M1,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/InternDataM1-Franka,projset,action_processed_r1/动作或训练加工,nonempty,1942270327970,912610,full_20261027
+same_family,InternData M1,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/InternDataM1-Piper,projset,action_processed_r1/动作或训练加工,nonempty,364016091576,97648,full_20261027
+same_family,InternData M1,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/InternData-M1,projset,action_processed_r2/动作或训练加工,nonempty,47045209236,2494,full_20261027
+same_family,InternData M1,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/InternData-M1,projset,action_processed_r2_new/动作或训练加工,nonempty,31849396658,401,full_20261027
+same_family,InternData M1,/share-mixed/project/eai_pwm/datasets/download_jt/unzip/interndata_m1,project,解包数据,nonempty,,,unknown
+same_family,InternData M1,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/_provenance/eef_alignment_history/r2/InternData-M1,projset,action_processed_r2/动作或训练加工,nonempty,1580513760,1,large_files_only_20261027
+same_family,RoboTwin 2,/share-mixed/project/eai_pwm/datasets/RoboTwin2.0,project,数据集（格式未核验）,nonempty,1837760888942,531937,full_20261027
+same_family,RoboTwin 2,/share-mixed/project/eai_pwm/datasets/robotwin2_lerobot,project,数据集（格式未核验）,nonempty,67631985581,5429,full_20261027
+same_family,RoboTwin 2,/share-mixed/project/gz/benchmark/RoboTwin2.0,project,其他,nonempty,35323957225,14567,full_20261027
+same_family,RoboTwin 2,/share-mixed/project/linzhe/data/RoboTWIN2.0,project,数据集（格式未核验）,nonempty,1473174748242,598,full_20261027
+same_family,RoboTwin 2,/share-mixed/project/eai_pwm/benchmarks/data/RoboTWIN2.0,project,数据集（格式未核验）,nonempty,1473174748242,598,full_20261027
+same_family,RoboTwin 2,/share-mixed/project/eai_pwm/datasets/download_jt/RoboTwin2.0,project,数据集（格式未核验）,nonempty,1655249940518,712,full_20261027
+same_family,RoboTwin 2,/share-mixed/project/eai_pwm/datasets/download_jt/RoboTwin2.0_lerobot,project,数据集（格式未核验）,nonempty,55101087145,1770,full_20261027
+same_family,RoboTwin 2,/share-mixed/project/eai_pwm/datasets/download_jt/robotwin2_rerender,project,数据集（格式未核验）,nonempty,340155696336,986235,full_20261027
+same_family,RoboTwin 2,/share-mixed/project/eai_pwm/pipeline_store/latents/robotwin2_aloha_0915_wan2pt2_tokenizer-tsrcfps480-20eb789667fa_v1,project,latent/特征,nonempty,259388891232,366,full_20261027
+same_family,RoboTwin 2,/share-mixed/project/linzhe/robotwin-sync/data/robotwin-2.0,project,数据集（格式未核验）,nonempty,14928318176,6,full_20261027
+same_family,RoboTwin 2,/share-mixed/project/linzhe/robotwin-sync/sources/robotwin-2.0,project,pipeline sources/源数据,nonempty,16622401968,21719,full_20261027
+same_family,RoboTwin 2,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/RoboTwin2.0,projset,action_processed_r1/动作或训练加工,nonempty,82719700562,630665,full_20261027
+same_family,RoboTwin 2,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/RoboTwin2.0,projset,action_processed_r2/动作或训练加工,nonempty,28122185856,2189,full_20261027
+same_family,RoboTwin 2,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/RoboTwin2.0,projset,action_processed_r2_new/动作或训练加工,nonempty,15934340509,606,full_20261027
+same_family,OakInk 2,/share-mixed/project/eai_pwm/datasets/OakInk-v2,project,数据集（格式未核验）,nonempty,2131725312890,1261,full_20261027
+same_family,OakInk 2,/share-mixed/project/gz/data/tac_data/OakInk2,project,数据集（格式未核验）,nonempty,,,unknown
+same_family,OakInk 2,/share-mixed/project/gz/data/tac_data/oakink2,project,数据集（格式未核验）,nonempty,4273215501562,65226,full_20261027
+same_family,stereo-550,/share-mixed/projset/eai_pwm/datasets/stereo-550,projset,数据集（格式未核验）,nonempty,1856512429373,8386,full_20261027
+same_family,stereo-550,/share-mixed/project/eai_pwm/pipeline_store/latents/stereo-550_lw2030_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,255047020292,117,full_20261027
+same_family,stereo-550,/share-mixed/project/eai_pwm/pipeline_store/latents/stereo-550_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,1300738012109,2051,full_20261027
+same_family,stereo-550,/share-mixed/project/eai_pwm/pipeline_store/materialized/stereo-550_lw2030_v2,project,materialized/加工视频,nonempty,,,unknown
+same_family,stereo-550,/share-mixed/project/eai_pwm/pipeline_store/materialized/stereo-550_v2,project,materialized/加工视频,nonempty,2564142041269,422135,full_20261027
+same_family,stereo-550,/share-mixed/project/eai_pwm/pipeline_store/supplement_2to20/latents/stereo-550_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,320030085456,45,large_files_only_20261027
+same_family,stereo-550,/share-mixed/project/eai_pwm/pipeline_store/demo/vae_demo_10k/latents/stereo-550_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,5212237136,2,large_files_only_20261027
+same_family,UltraVideo,/share-mixed/projset/eai_pwm/datasets/UltraVideo,projset,数据集（格式未核验）,nonempty,2033709405075,136,full_20261027
+same_family,UltraVideo,/share-mixed/projset/eai_pwm/datasets/UltraVideo-Long,projset,数据集（格式未核验）,nonempty,1168531924657,42,full_20261027
+same_family,DexYCB,/share-mixed/project/eai_pwm/datasets/DexYCB,project,数据集（格式未核验）,nonempty,127611176595,13,full_20261027
+same_family,DexYCB,/share-mixed/project/gz/data/tac_data/DexYCB,project,数据集（格式未核验）,nonempty,2841300107877,9642614,full_20261027
+same_family,Bench2Dex,/share-mixed/project/eai_pwm/datasets/bench2dex_a100_sft_caption_pilot_gpt56_20261029,project,数据集（格式未核验）,nonempty,,,unknown
+same_family,Bench2Dex,/share-mixed/project/eai_pwm/datasets/bench2dex_a100_sft_caption_pilot_gpt56_20261029_pre_alignment_fix,project,数据集（格式未核验）,nonempty,,,unknown
+same_family,Bench2Dex,/share-mixed/project/eai_pwm/datasets/bench2dex_a100_sft_gpt56_20261029,project,数据集（格式未核验）,nonempty,,,unknown
+same_family,Bench2Dex,/share-mixed/project/eai_pwm/datasets/bench2dex_a100_sft_policy_gpt56_20261029,project,数据集（格式未核验）,nonempty,,,unknown
+same_family,Bench2Dex,/share-mixed/project/eai_pwm/datasets/bench2dex_bench_v0_1_20261101,project,数据集（格式未核验）,nonempty,,,unknown
+same_family,Bench2Dex,/share-mixed/projset/eai_pwm/datasets/bench2dex_a100_sft_20261028,projset,数据集（格式未核验）,nonempty,,,unknown
+same_family,Bench2Dex,/share-mixed/projset/eai_pwm/datasets/bench2dex_a100_sft_20261028_pilot_8ec7d45,projset,数据集（格式未核验）,nonempty,,,unknown
+same_family,Bench2Dex,/share-mixed/project/gz/DexTrain/datasets/bench2dex,project,数据集（格式未核验）,nonempty,388452608155,2786,full_20261027
+same_family,Bench2Dex,/share-mixed/project/gz/DexTrain/datasets/bench2dex_a100_20261024,project,数据集（格式未核验）,nonempty,22446621035,180,full_20261027
+same_family,Bench2Dex,/share-mixed/project/gz/DexTrain/datasets/bench2dex_a100_cache_20261024,project,数据集（格式未核验）,nonempty,344997312701,1060,full_20261027
+same_family,Bench2Dex,/share-mixed/project/gz/DexTrain/datasets/bench2dex_a100_instruction_v2_20261024,project,数据集（格式未核验）,nonempty,12172062048,49,full_20261027
+same_family,Bench2Dex,/share-mixed/project/gz/DexTrain/datasets/bench2dex_full_a100_20261025,project,数据集（格式未核验）,nonempty,637635196135,5226,full_20261027
+same_family,Bench2Dex,/share-mixed/project/gz/DexTrain/datasets/bench2dex_origin_audit,project,数据集（格式未核验）,nonempty,,,unknown
+same_family,Bench2Dex,/share-mixed/projset/eai_pwm/datasets/action_tactile_pretraining_20261026/bench2dex,projset,action_tactile_pretraining_20261026/动作或训练加工,nonempty,274663710589,28621,full_20261027
+same_family,Bench2Dex,/share-mixed/projset/eai_pwm/datasets/tactile/Bench2Dex,projset,数据集（格式未核验）,nonempty,406254817263,10412,full_20261027
+same_family,HoloAssist,/share-mixed/projset/eai_pwm/datasets/HoloAssist,projset,数据集（格式未核验）,nonempty,1411500438713,6342,full_20261027
+same_family,HoloAssist,/share-mixed/project/eai_pwm/pipeline_store/latents/holoassist_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,97644790908,214,full_20261027
+same_family,HoloAssist,/share-mixed/project/eai_pwm/pipeline_store/materialized/holoassist_v2,project,materialized/加工视频,nonempty,151797260673,56757,full_20261027
+same_family,HoloAssist,/share-mixed/project/eai_pwm/pipeline_store/supplement_E/latents/holoassist_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,20165392968,3,large_files_only_20261027
+same_family,HoloAssist,/share-mixed/project/eai_pwm/pipeline_store/supplement_v04/latents/holoassist_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,90854657856,48,large_files_only_20261027
+same_family,HoloAssist,/share-mixed/project/eai_pwm/pipeline_store/demo/vae_demo_10k/latents/holoassist_wan2pt2_tokenizer-t480-20eb789667fa_v1,project,latent/特征,nonempty,3765555816,2,large_files_only_20261027
+same_family,T-Rex,/share-mixed/project/eai_pwm/datasets/T-Rex,project,数据集（格式未核验）,nonempty,5849,1,full_20261027
+same_family,T-Rex,/share-mixed/projset/eai_pwm/datasets/trex_dataset,projset,数据集（格式未核验）,nonempty,1528952624193,7903,full_20261027
+same_family,T-Rex,/share-mixed/project/eai_pwm/datasets/action_policy_v12_no_paxini_20261019/trex,project,action_policy_v12_no_paxini_20261019/动作或训练加工,nonempty,2972260159,9528,full_20261027
+same_family,T-Rex,/share-mixed/projset/eai_pwm/datasets/action_policy_lwh_1021/trex,projset,action_policy_lwh_1021/动作或训练加工,nonempty,7090010083,4770,full_20261027
+same_family,T-Rex,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/T-Rex,projset,action_processed_r1/动作或训练加工,nonempty,3353973287,2098,full_20261027
+same_family,T-Rex,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/T-Rex,projset,action_processed_r2/动作或训练加工,nonempty,3737449669,131,full_20261027
+same_family,T-Rex,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/T-Rex,projset,action_processed_r2_new/动作或训练加工,nonempty,3653886758,117,full_20261027
+same_family,T-Rex,/share-mixed/projset/eai_pwm/datasets/action_processed_r3/T-Rex,projset,action_processed_r3/动作或训练加工,nonempty,36715534659,16194,full_20261027
+same_family,FastUMI,/share-mixed/project/eai_pwm/datasets/FastUMI-100K,project,数据集（格式未核验）,nonempty,1401174772457,235544,full_20261027
+same_family,FastUMI,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/FastUMI,projset,action_processed_r1/动作或训练加工,nonempty,8565178085,1299,full_20261027
+same_family,FastUMI,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/FastUMI,projset,action_processed_r2/动作或训练加工,nonempty,19034568071,1913,full_20261027
+same_family,FastUMI,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/FastUMI,projset,action_processed_r2_new/动作或训练加工,nonempty,11150148581,254,full_20261027
+same_family,TACO,/share-mixed/project/eai_pwm/datasets/TACO,project,数据集（格式未核验）,nonempty,1027590274280,33,full_20261027
+same_family,TACO,/share-mixed/project/gz/data/tac_data/TACO,project,数据集（格式未核验）,nonempty,326153673709,603994,full_20261027
+same_family,Sharpa,/share-mixed/project/yhzhang/data/SharpaDex-v1.0_20261012,project,数据集（格式未核验）,nonempty,,,unknown
+same_family,Sharpa,/share-mixed/project/eai_pwm/datasets/action_processed_r2/FTP1Sharpa,project,action_processed_r2/动作或训练加工,nonempty,6462891418,4720,full_20261027
+same_family,Sharpa,/share-mixed/projset/eai_pwm/datasets/action_processed_r1/Sharpa-North,projset,action_processed_r1/动作或训练加工,nonempty,38912825930,48606,full_20261027
+same_family,Sharpa,/share-mixed/projset/eai_pwm/datasets/action_processed_r2/Sharpa-North,projset,action_processed_r2/动作或训练加工,nonempty,10776811798,1165,full_20261027
+same_family,Sharpa,/share-mixed/projset/eai_pwm/datasets/action_processed_r2_new/Sharpa-North,projset,action_processed_r2_new/动作或训练加工,nonempty,10776655888,1162,full_20261027
+same_family,Sharpa,/share-mixed/projset/eai_pwm/datasets/action_processed_r3/Sharpa-North,projset,action_processed_r3/动作或训练加工,nonempty,127740914495,33975,full_20261027
+same_family,PH2D,/share-mixed/project/eai_pwm/datasets/PH2D,project,数据集（格式未核验）,nonempty,171069060105,9257,full_20261027
+same_family,PH2D,/share-mixed/project/yhzhang/hand_pose_1023/ph2d,project,姿态/预处理,nonempty,,,unknown
+same_family,PH2D,/share-mixed/projset/eai_pwm/datasets/PH2D,projset,数据集（格式未核验）,nonempty,16205406763,3704,full_20261027
+same_family,HO3D,/share-mixed/project/eai_pwm/datasets/HO3D_v3,project,数据集（格式未核验）,nonempty,34350969218,4,full_20261027
+same_family,HO3D,/share-mixed/project/gz/data/tac_data/HO3D,project,数据集（格式未核验）,nonempty,,,unknown
+same_family,HO3D,/share-mixed/project/gz/data/tac_data/HO3D_v3,project,数据集（格式未核验）,nonempty,131739993952,229640,full_20261027

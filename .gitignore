@@ -29,3 +29,10 @@ SHA256SUMS
 broker-parallel-*/
 parallel-resume-fixture-*/
 resume-index-fixture-*/
+
+# Local editor preferences and live shared run evidence
+/.vscode/
+/runs/
+
+# Private test fixtures; keep them outside source control
+/ssh-route-fixture-*/

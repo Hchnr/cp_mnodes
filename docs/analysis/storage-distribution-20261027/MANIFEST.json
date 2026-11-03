@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "artifacts": [
+    {
+      "path": "exports/directories-depth4.csv.gz",
+      "original_path": "docs/sheets/file_all_depth4.csv",
+      "uncompressed_bytes": 224637479,
+      "uncompressed_sha256": "c5a34537775b74f2caed014496e8778ce5c97360a01cd6a6b97c0868eff71aa0",
+      "compressed_bytes": 19413926,
+      "compressed_sha256": "acda7dfcfa65a6329613ed56c31351688398e324bf5e8fc27808131650db6b31"
+    },
+    {
+      "path": "exports/large-file-directories-depth17.csv.gz",
+      "original_path": "docs/sheets/file_1gb_depth17.csv",
+      "uncompressed_bytes": 20793110,
+      "uncompressed_sha256": "fbf4e3ea61af7597749620f5ab92bee40f0a6df8a30995e899a0d157f3e1dd1c",
+      "compressed_bytes": 1829474,
+      "compressed_sha256": "a6a4eb0b2e4e02bb319055ee0924df1d238b10cba182b70e584369a250dccae3"
+    },
+    {
+      "path": "exports/lightwheel-right-eye-paths-20261027.md.gz",
+      "original_path": "DELETE-\u5149\u8f6e\u53f3\u76ee\u89c6\u9891-\u7edd\u5bf9\u8def\u5f84\u6e05\u5355-20261027.md",
+      "uncompressed_bytes": 41377085,
+      "uncompressed_sha256": "bc7a60f42ae9151572e896a8992a97d3bbcb433faa791ac23b114b34bfa08ef7",
+      "compressed_bytes": 7511349,
+      "compressed_sha256": "f81cca75cc6f2c4126bb8f4ab4a48a21e5cb013fda6620794905b77b87939978"
+    },
+    {
+      "path": "exports/directories-depth4-over-1tb.csv",
+      "original_path": "docs/sheets/file_all_depth4_filter_1tb.csv",
+      "uncompressed_bytes": 61454,
+      "uncompressed_sha256": "dd3ddfc315aa8f0f5f1fce2c3a17749b1993456c4377e7820e7a1178cb6ea8c1"
+    },
+    {
+      "path": "exports/directories-depth4-over-1tb-readable.csv",
+      "original_path": "docs/sheets/file_all_depth4_filter_1tb_readable.csv",
+      "uncompressed_bytes": 71906,
+      "uncompressed_sha256": "6c239cb80beeb7d520ea3025677250c32e169548cde4f00cbe908198c102dee3"
+    }
+  ]
+}
