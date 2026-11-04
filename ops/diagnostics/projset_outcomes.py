@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Incrementally export persisted non-copied outcomes; never change source/target.
 
-Receipts are read to a bounded prefix. Each selected record is keyed by node
+Receipts are read to a bounded prefix. Each selected record is keyed by receipt path
 and byte offset, making interrupted checkpoint recovery idempotent. No hashes
 are recalculated and no data files are copied, updated, or removed.
 """
@@ -80,15 +80,16 @@ def export(run,out):
         with catalog.open('rb') as f:
             for line in f:
                 if not line.endswith(b'\n'):break
-                row=json.loads(line);selected[(row['_node'],row['_offset'])]=row
+                row=json.loads(line);selected[(row['_receipt'],row['_offset'])]=row
                 valid_end=f.tell()
         # Repair only our derived catalog's torn tail; copy receipts are read-only.
         if catalog.stat().st_size>valid_end:
             with catalog.open('r+b') as f:f.truncate(valid_end)
     new=0;scanned=0
     with catalog.open('ab',buffering=1048576) as dest:
-        for path in sorted((run/'nodes').glob('*/receipts.jsonl')):
-            node=path.parent.name;s=path.stat();old=state['offsets'].get(node,{'offset':0,'ino':s.st_ino})
+        for path in sorted((run/'nodes').glob('**/receipts.jsonl')):
+            node=path.relative_to(run/'nodes').parts[0];s=path.stat();offset_key=node if path.parent.name==node else str(path)
+            old=state['offsets'].get(offset_key,state['offsets'].get(node,{'offset':0,'ino':s.st_ino}) if path.parent.name==node else {'offset':0,'ino':s.st_ino})
             if old['ino']!=s.st_ino or s.st_size<old['offset']:raise RuntimeError('receipt identity/truncation differs: '+node)
             pos=old['offset'];end=s.st_size
             for offset,line in bounded_lines(path,pos,end):
@@ -96,11 +97,11 @@ def export(run,out):
                 if b'"status":"copied"' in line and b'"metadata_warnings"' not in line:continue
                 row=json.loads(line)
                 if row['status'] not in STATUSES and not row.get('metadata_warnings'):continue
-                key=(node,offset)
+                key=(str(path),offset)
                 if key not in selected:
                     row.update(_node=node,_offset=offset,_receipt=str(path));selected[key]=row
                     dest.write(json.dumps(row,ensure_ascii=True,separators=(',',':')).encode()+b'\n');new+=1
-            state['offsets'][node]=dict(offset=pos,ino=s.st_ino,captured_size=end)
+            state['offsets'][offset_key]=dict(offset=pos,ino=s.st_ino,captured_size=end)
             dest.flush();os.fsync(dest.fileno());atomic(statepath,state)
         dest.flush();os.fsync(dest.fileno())
     fields=['status','kind','node','relative_path','source_path','target_path','recorded_source_bytes','recorded_source_TB',
@@ -156,8 +157,8 @@ def export(run,out):
         '- symlink 的容量只是链接文本长度，**不是链接所指向整棵数据的容量**，不能把几十个链接冲突视作只有几KB数据受影响。',
         '- 记录数不保证是唯一文件数；目录/扫描错误也可记为结果，元数据警告可能和成功结果重叠。',
         '', '## 是否自动重试或更新',
-        '', '原始 `nodes/<node>/receipts.jsonl` 和 `issues.jsonl` 一直追加；本报告和CSV现在每120秒增量更新，检查 summary.json 的 updated_beijing 确认新鲜度。',
-        '', '当前复制程序每个已分配条目只调用一次复制函数。冲突、源变化和错误结果被记账后，该批次继续并结束；**不会自动重试这些结果，不会自动覆盖目标，也没有自动第二轮更新**。更新文档不等于重新复制。',
+        '', '原始回执保持不变；恢复后的回执追加到 `nodes/<node>/attempt-*/receipts.jsonl` 和 `issues.jsonl`；本报告和CSV现在每120秒增量更新，检查 summary.json 的 updated_beijing 确认新鲜度。',
+        '', '控制器和连接故障会由独立守护进程自动恢复未确认任务；已确认的文件结果仍保留。冲突、源变化和错误结果被记账后，该批次继续并结束；**不会自动重试这些结果，不会自动覆盖目标，也没有自动第二轮更新**。更新文档不等于重新复制。',
         '', '建议人工处理顺序：先看 error 的瞬态存储错误能否重新读取，再看 changed 的在线日志/进度文件是否已稳定；conflict 需决定保留哪一侧版本。此报告只读检查，没有代替你做覆盖、删除或重试。',
         '', '## 目标已有相同内容：容量最大的目录分组','', '| 相对路径前3层 | 记录数 | 容量（TB） |','|---|---:|---:|']
     for g in [x for x in grouped if x['status']=='skipped'][:15]:lines.append(f"| `{g['path_prefix'].replace('|','&#124;')}` | {g['records']:,} | {g['recorded_source_bytes']/1e12:.9f} |")

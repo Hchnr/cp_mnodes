@@ -5,6 +5,8 @@
 | 入口 | 职责 |
 |---|---|
 | `projset_copy.py` | `probe` 检查身份；`controller` 负责本地SQLite调度和共享清单；`worker` 执行有界扫描与复制；`status` 读取已有任务。controller/worker 只能针对已准备的独立控制目录显式启动。 |
+| `projset_recovery_copy.py` | 从共享日志恢复队列，复用未确认任务的有效回执，去重扫描结果；仅由守护进程启动。 |
+| `projset_recovery_supervisor.py` | CPU主节点守护与备用节点互相拉起，隔离旧进程后恢复；同时维护上报和导出进程。 |
 | `projset_progress.py` | 只读显示进度；默认读取本机 `runs/projset-copy-current.json`，也支持 `--run`、`--watch`、`--json`。 |
 | `projset_swanlab.py` | 独立上报器，每120秒一次合并上报，复用持久run ID，异常退避；SwanLab环境与复制环境分离。 |
 | `projset_overview.py` | 总览纯函数：已确认容量、速度、节点消息新鲜度、异常和状态表。未掌握完整逻辑容量时不生成百分比或ETA。 |
@@ -17,9 +19,9 @@
 ```sh
 python3 -S -B -m unittest discover -s tests/core -p 'test_projset_*.py' -v
 python3 -S -B -m unittest discover -s tests/audit -p 'test_projset_*.py' -v
-python3 -S -B tools/repo.py test test_projset_copy test_projset_overview test_projset_usage test_projset_outcomes test_dataset_archives
+python3 -S -B tools/repo.py test test_projset_copy test_projset_overview test_projset_usage test_projset_outcomes test_projset_recovery test_dataset_archives
 ```
 
 [运行记录](../../docs/operations/projset-copy-20261102.md)、[图表逐项说明](../../docs/operations/projset-swanlab-charts.md)、[跳过/异常清单](../../docs/operations/projset-copy-outcomes.md)。这些记录描述已有任务，代码提交不会部署或重启它。
 
-共享任务/回执是恢复权威；本地SQLite只是调度缓存。当前入口不自动重启同一worker、不自动重派状态不明的在途任务，也不自动第二轮补扫或重试已结束异常。目录元数据及硬链接拓扑未完成最终同步；在线源复制不构成时间点快照。
+共享任务/回执是恢复权威；本地SQLite只是调度缓存。初版入口不具备自动恢复；当前运行已部署[恢复守护机制](../../docs/operations/projset-recovery.md)，隔离旧进程后恢复未确认任务。不会自动第二轮补扫或重试已确认异常。目录元数据及硬链接拓扑未完成最终同步；在线源复制不构成时间点快照。

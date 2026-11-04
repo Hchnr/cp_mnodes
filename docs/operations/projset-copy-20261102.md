@@ -98,3 +98,8 @@ python3 -S -B -m unittest discover -s tests/core -p test_projset_copy.py -v
 按用户要求新增并置顶“总览”分组，内含一张状态表和六条汇总曲线：已确认容量、新复制、已有相同、5分钟完成速度（TB/h）、在线节点、需复核结果。全量逻辑容量尚未确定；旧清点为 failed 且口径为分配字节，因此总量/百分比/ETA 明确显示尚未确定。
 
 新上报代码冻结在控制目录 `swanlab/overview-v1-20261103/`，复制进程保持运行，每120秒上报到原实验。云端数据和布局均已回读核验；证据为该目录下 `server-verification.json` 和 `layout-verification.json`。完整逐图说明见仓库 `docs/operations/projset-swanlab-charts.md`。
+
+
+## 2026-11-03：迁移至 CPU 节点并增加自动恢复
+
+开发容器退出后原控制器丢失，CPU工作节点正常收尾，未见OOM kill。现从原共享日志恢复，由 CPU 主节点的独立守护管理控制器，CPU worker-0 的备用守护自动拉起主守护；SwanLab及清单导出同时纳入守护。原冻结代码和回执不变，新运行文件位于 `recovery/` 及各节点 `attempt-*`。架构、边界、路径和检查方式见[恢复说明](projset-recovery.md)。
