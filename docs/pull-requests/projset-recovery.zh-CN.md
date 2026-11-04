@@ -15,7 +15,7 @@
 
 - `python3 -S -B tools/repo.py test test_projset_copy test_projset_overview test_projset_usage test_projset_outcomes test_projset_recovery test_dataset_archives`：22 项测试通过。
 - 源码目录复查：3 项恢复测试、2 项清单导出测试通过，覆盖日志重放、目标变化拒绝复用、进程身份隔离和跨批次导出幂等性。
-- 411 个打包 Python 源文件语法检查通过，运行包文件名无冲突；`git diff --check` 通过。
+- 412 个打包 Python 源文件语法检查通过，运行包文件名无冲突；`git diff --check` 通过。
 - 已部署版本此前完成实机故障验证：终止主守护后，备用守护自动拉起主守护、隔离旧控制器，16 个 CPU 工作节点恢复。证据位置见 `docs/operations/projset-recovery.md`。
 
 ## 运行边界

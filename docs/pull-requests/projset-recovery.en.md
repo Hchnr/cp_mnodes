@@ -15,7 +15,7 @@ When the development container or controller exits, copying can stop even though
 
 - `python3 -S -B tools/repo.py test test_projset_copy test_projset_overview test_projset_usage test_projset_outcomes test_projset_recovery test_dataset_archives`: 22 tests passed.
 - Source-layout checks: 3 recovery tests and 2 outcome-export tests passed, covering journal replay, changed-target rejection, process-identity fencing, and idempotent multi-attempt exports.
-- All 411 bundled Python sources parsed successfully; bundle filenames are unique. `git diff --check` passed.
+- All 412 bundled Python sources parsed successfully; bundle filenames are unique. `git diff --check` passed.
 - Previously deployed runtime was verified by terminating the primary supervisor: standby restarted it, fenced the old controller, and resumed all 16 CPU workers. Evidence locations are documented in `docs/operations/projset-recovery.md`.
 
 ## Operational limits
