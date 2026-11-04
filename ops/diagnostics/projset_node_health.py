@@ -32,14 +32,16 @@ def pairs(value):
 
 def inspect(run, node):
     run = Path(run)
-    launch = json.loads((run/'nodes'/node/'launch.json').read_text())
+    folder=run/'nodes'/node
+    launches=[folder/'launch.json']+list(folder.glob('attempt-*/launch.json'))
+    launch=max((json.loads(p.read_text()) for p in launches),key=lambda x:x['started'])
     pid = launch['pid']
     proc = Path('/proc')/str(pid)
     stat = read(proc/'stat')
     argv = (proc/'cmdline').read_bytes().split(b'\0') if stat else []
     fields = stat.rsplit(') ', 1)[1].split() if stat else []
     process = dict(pid=pid, present=bool(stat), start_matches=bool(fields) and fields[19]==launch['start'],
-        argv_matches=str(run/'code/projset_copy.py').encode() in argv,
+        argv_matches=launch['argv'][0].encode() in argv,
         status=pairs(read(proc/'status')), io=pairs(read(proc/'io')),
         oom_score=read(proc/'oom_score'), oom_score_adj=read(proc/'oom_score_adj'),
         wchan=read(proc/'wchan'), fd_count=len(list((proc/'fd').iterdir())) if proc.exists() else None,

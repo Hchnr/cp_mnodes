@@ -48,5 +48,19 @@ class OutcomeTests(unittest.TestCase):
                 self.assertFalse(s['automatic_retry'])
             finally:m.SOURCE,m.TARGET=original
 
+    def test_attempt_receipts_with_same_offset_do_not_collide(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);run=root/'run';out=root/'out'
+            (run/'nodes/n1/attempt-001').mkdir(parents=True)
+            (run/'nodes/n1/attempt-002').mkdir()
+            (run/'status.json').write_text(json.dumps(dict(counts={},updated=1)))
+            for name in ('receipts.jsonl','attempt-001/receipts.jsonl','attempt-002/receipts.jsonl'):
+                (run/'nodes/n1'/name).write_text(json.dumps(dict(status='skipped',kind='file',rel=name,logical_bytes=10),separators=(',',':'))+'\n')
+            m.export(run,out);m.export(run,out)
+            summary=json.loads((out/'summary.json').read_text())
+            self.assertEqual(3,summary['statuses']['skipped']['records'])
+            self.assertEqual(30,summary['statuses']['skipped']['recorded_source_bytes'])
+            self.assertEqual(0,summary['new_selected_records'])
+
 
 if __name__=='__main__':unittest.main()
