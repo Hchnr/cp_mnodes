@@ -99,7 +99,27 @@ python3 -S -B -m unittest discover -s tests/core -p test_projset_copy.py -v
 
 新上报代码冻结在控制目录 `swanlab/overview-v1-20261103/`，复制进程保持运行，每120秒上报到原实验。云端数据和布局均已回读核验；证据为该目录下 `server-verification.json` 和 `layout-verification.json`。完整逐图说明见仓库 `docs/operations/projset-swanlab-charts.md`。
 
+## 2026-11-09：复制任务公平调度
+
+运行采样显示，队列较小时按配置顺序分配会让前几个节点先占满复制槽。控制器现按每节点在途复制批次数从少到多分配，并轮转打破平局；目录扫描配额和每节点并发上限不变。部署使用现有 supervisor 的节点 fencing 与日志重建恢复，任务清单和逐文件回执仍为恢复依据。部署后应核对 16 个节点的复制计数增量是否更均匀、待复制批次是否有进展，以及确认进度是否连续。
+
 
 ## 2026-11-03：迁移至 CPU 节点并增加自动恢复
 
 开发容器退出后原控制器丢失，CPU工作节点正常收尾，未见OOM kill。现从原共享日志恢复，由 CPU 主节点的独立守护管理控制器，CPU worker-0 的备用守护自动拉起主守护；SwanLab及清单导出同时纳入守护。原冻结代码和回执不变，新运行文件位于 `recovery/` 及各节点 `attempt-*`。架构、边界、路径和检查方式见[恢复说明](projset-recovery.md)。
+
+
+## 2026-11-10：公平调度上线后验证
+
+修复版控制器 PID 464751 于北京时间 11/09 17:16:41 开始恢复，19:28:03 重建结束，历时约 2 小时 11 分钟；11/10 11:10 检查时仍为同一进程。16/16 工作进程身份正确，全部 cgroup 的 oom/oom_kill 均为 0，内核检查未发现 OOM，工作进程 RSS 约 139–177 MiB。
+
+110 秒线上采样中，16 个节点均完成 4131–4830 项，最忙四个节点占总处理量 26.3%；修复前的一次 28.8 分钟采样中，前四个节点占 98.6%。调度分布已明显改善，但两次采样的任务内容不同，不能将吞吐差异全部归因于修复。当前采样约 237.7 万项/小时、0.0361 TB/小时，以小文件为主。累计进度保持连续，采样期间错误计数未增加；历史错误仍有 208 条，保留在既有清单中供后续复核。
+
+线上原始状态与节点健康证据：控制目录 `recovery/fairness-verification-20261110/`；部署记录 `recovery/scheduler-fairness-deployment.json` 已标记为 deployed_and_verified。此次验证没有重启控制器或工作进程。
+
+
+## 2026-11-10：定向补拷本次运行的 Stale file handle 遗漏
+
+复查本次运行的 80 条历史错误路径：52 个目录和 28 个普通文件当前均可读取。完整清点这些根路径，去重后共 80 个目录、193 个普通文件，文件合计 7,141,934 bytes；193 个目标文件均缺失。使用冻结复制引擎在 cpu-worker-14 串行定向补拷，193 项均 copied，执行后再次逐文件读取源/目标并比对 SHA-256，全部一致；观察端挂载的 193 个目标路径也已全部可见。主任务持续运行，16/16 节点在线，无重启。
+
+补拷证据位于控制目录 `recovery/fairness-verification-20261110/`，包括 `retry-inventory.json`、`retry-receipts.jsonl`、`retry-summary.json`、`retry-independent-verification.json`、`retry-cross-mount-visibility.json`、`retry-resolution.json`。历史错误清单保留，不回写主控制器计数；看板的 208 条累计错误不会因这次补拷自动减少。其余历史错误与冲突仍需另外复核。
