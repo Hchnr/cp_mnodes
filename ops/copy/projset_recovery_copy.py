@@ -164,6 +164,20 @@ def scan_directory(source, target, rel, emit, issue, expected_ino=None):
         os.close(fd)
 
 
+def fair_copy_order(clients, cursor=0):
+    """Prefer ready workers with fewer leased copy batches; rotate ties."""
+    names = [name for name, client in clients.items()
+             if client['alive'] and client['ready']]
+    if not names:
+        return []
+    cursor %= len(names)
+    rank = {name: (index - cursor) % len(names)
+            for index, name in enumerate(names)}
+    return sorted(names, key=lambda name: (
+        sum(kind == 'copy' for kind in clients[name]['active'].values()),
+        rank[name]))
+
+
 def worker(run, node):
     cfg = read(run/'config.json')
     validate(run, cfg, node)
@@ -353,6 +367,7 @@ def controller(run):
         clients[node] = dict(p=p, ready=False, alive=True, active={}, last=time.time(), counts=read(run/'recovery'/'baseline.json')[node])
         threading.Thread(target=reader, args=(node, p), daemon=True).start()
     tick, started, done, failures = 0, previous['started'], db.execute('select count(*) from all_ids').fetchone()[0] - sum(pending.values()), []
+    copy_cursor = 0
     history = collections.deque(maxlen=400)
     phase = 'copying'
     try:
@@ -409,15 +424,46 @@ def controller(run):
                         send(node, dict(kind='ack', id=key))
                     blocked.remove((node, key))
             stopping = (run/'STOP').exists()
-            for node, client in clients.items():
-                if not client['alive'] or not client['ready'] or stopping:
-                    continue
-                for kind, slots in [('copy', 3), ('scan', 1)]:
-                    if kind == 'scan' and pending['copy'] >= 8192:
+            if not stopping:
+                # Small or intermittent copy queues must not be consumed by
+                # the first nodes in config order. Water-fill one batch per
+                # worker per round, preferring the fewest active copy leases.
+                while pending['copy'] > 0:
+                    order = fair_copy_order(clients, copy_cursor)
+                    if not order:
+                        break
+                    assigned = False
+                    for node in order:
+                        client = clients[node]
+                        if list(client['active'].values()).count('copy') >= 3:
+                            continue
+                        row = db.execute('select id,payload from jobs where state="pending" and type=? order by id limit 1', ('copy',)).fetchone()
+                        if row is None:
+                            pending['copy'] = 0
+                            break
+                        key, payload = row
+                        durable(journal)
+                        db.execute('update jobs set state="leased",node=? where id=?', (node, key))
+                        db.commit()
+                        leases[key] = node
+                        client['active'][key] = 'copy'
+                        pending['copy'] -= 1
+                        task = json.loads(payload)
+                        task['prior'] = {r[0]:json.loads(r[1]) for r in db.execute('select rel,payload from prior where job=?', (key,))}
+                        send(node, dict(kind='job', task=task))
+                        assigned = True
+                    copy_cursor = (copy_cursor + 1) % max(1, len(clients))
+                    if not assigned:
+                        break
+
+                for node, client in clients.items():
+                    if not client['alive'] or not client['ready']:
                         continue
-                    available = slots - list(client['active'].values()).count(kind)
+                    if pending['copy'] >= 8192:
+                        continue
+                    available = 1 - list(client['active'].values()).count('scan')
                     for _ in range(available):
-                        row = db.execute('select id,payload from jobs where state="pending" and type=? order by id limit 1', (kind,)).fetchone()
+                        row = db.execute('select id,payload from jobs where state="pending" and type=? order by id limit 1', ('scan',)).fetchone()
                         if row is None:
                             break
                         key, payload = row
@@ -425,12 +471,9 @@ def controller(run):
                         db.execute('update jobs set state="leased",node=? where id=?', (node, key))
                         db.commit()
                         leases[key] = node
-                        client['active'][key] = kind
-                        pending[kind] -= 1
-                        task = json.loads(payload)
-                        if kind == 'copy':
-                            task['prior'] = {r[0]:json.loads(r[1]) for r in db.execute('select rel,payload from prior where job=?', (key,))}
-                        send(node, dict(kind='job', task=task))
+                        client['active'][key] = 'scan'
+                        pending['scan'] -= 1
+                        send(node, dict(kind='job', task=json.loads(payload)))
             now = time.time()
             for node, client in clients.items():
                 if client['alive'] and now-client['last'] > 120:
@@ -517,13 +560,49 @@ def resume_valid(entry, prior):
 
 def rebuild(run, dbpath):
     # SQLite is a disposable cache; append-only shared journals are authoritative.
+    recovery = run/'recovery'
+    progress_path = recovery/'rebuild-progress.json'
+    last_report = 0.0
+
+    def report(stage, path='', seen=0, force=False):
+        nonlocal last_report
+        monotonic = time.monotonic()
+        if not force and monotonic - last_report < 30:
+            return
+        now = time.time()
+        value = dict(state='rebuilding', stage=stage,
+                     file=Path(path).name if path else '', records=seen,
+                     updated=now)
+        atomic(progress_path, value)
+        status_path = run/'status.json'
+        try:
+            status = read(status_path)
+            status.update(state='recovering', updated=now,
+                          recovery_stage=stage, recovery_file=value['file'],
+                          recovery_records=seen)
+            atomic(status_path, status)
+        except FileNotFoundError:
+            pass
+        last_report = monotonic
+
+    def progress_records(path, stage):
+        report(stage, path, 0, force=True)
+        seen = 0
+        for row in records(path):
+            seen += 1
+            if seen % 1024 == 0:
+                report(stage, path, seen)
+            yield row
+        report(stage, path, seen, force=True)
+
     for suffix in ('', '-wal', '-shm'):
         try: os.unlink(dbpath+suffix)
         except FileNotFoundError: pass
     db = sqlite3.connect(dbpath)
     db.executescript('pragma journal_mode=off; pragma synchronous=off; pragma cache_size=-32768; create table jobs(id integer primary key,type text,state text,payload text,node text); create table all_ids(id integer primary key); create table scanned(rel text primary key); create table files(rel text primary key); create table prior(rel text primary key,job integer,payload text);')
-    for path in [run/'tasks.jsonl'] + sorted((run/'recovery').glob('tasks.*.jsonl')):
-        for task in records(path):
+    task_paths = [run/'tasks.jsonl'] + sorted(recovery.glob('tasks.*.jsonl'))
+    for path in task_paths:
+        for task in progress_records(path, 'tasks'):
             key = task['id']
             db.execute('insert into all_ids values(?)', (key,))
             db.execute('insert into jobs values(?,?,?,?,null)', (key,task['type'],'pending',json.dumps(task)))
@@ -531,8 +610,9 @@ def rebuild(run, dbpath):
                 db.execute('insert or ignore into scanned values(?)',(task['rel'],))
             else:
                 db.executemany('insert or ignore into files values(?)', ((e['rel'],) for e in task['entries']))
-    for path in [run/'completed.jsonl'] + sorted((run/'recovery').glob('completed.*.jsonl')):
-        for row in records(path):
+    completed_paths = [run/'completed.jsonl'] + sorted(recovery.glob('completed.*.jsonl'))
+    for path in completed_paths:
+        for row in progress_records(path, 'completed'):
             if not db.execute('select 1 from all_ids where id=?',(row['id'],)).fetchone():
                 raise ValueError('completion references missing task')
             db.execute('delete from jobs where id=?',(row['id'],))
@@ -541,8 +621,9 @@ def rebuild(run, dbpath):
     baseline = {n:collections.Counter(c) for n,c in original.items()}
     for node in original:
         folder = run/'nodes'/node
-        for path in [folder/'receipts.jsonl'] + sorted(folder.glob('attempt-*/receipts.jsonl')):
-            for row in records(path):
+        receipt_paths = [folder/'receipts.jsonl'] + sorted(folder.glob('attempt-*/receipts.jsonl'))
+        for path in receipt_paths:
+            for row in progress_records(path, 'receipts:'+node):
                 if row.get('job') in pending and row.get('rel') is not None:
                     db.execute('insert or replace into prior values(?,?,?)',(row['rel'],row['job'],json.dumps(row)))
                 if path.parent != folder:
@@ -557,6 +638,7 @@ def rebuild(run, dbpath):
     db.executescript('create index pending on jobs(state,type,id); create index prior_job on prior(job);')
     db.commit()
     atomic(run/'recovery'/'baseline.json', {n:dict(c) for n,c in baseline.items()})
+    report('ready', force=True)
     return db
 
 
