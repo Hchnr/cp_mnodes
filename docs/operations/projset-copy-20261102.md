@@ -129,3 +129,5 @@ python3 -S -B -m unittest discover -s tests/core -p test_projset_copy.py -v
 重新检查其余历史错误，80 个普通文件的源路径可访问、目标路径缺失，合计 26,808,132,624 bytes。独立补拷运行在 `cpu-worker-14`，使用冻结的复制与验证引擎，聚合读取、写入和校验限速为 1 MiB/s；已经存在且内容不同的目标仍记录为冲突，不覆盖。补拷按文件记录持久回执，完成的文件在进程重启后会重新核对身份并跳过；独立 supervisor 在异常退出时最多重启 10 次。主控制器、工作进程及主看板计数均不重启或回写。
 
 补拷 manifest、独立 `status.json`、`supervisor.json`、逐文件 `receipts.jsonl` 与日志位于控制目录 `recovery/prior-error-retry-20261110/`。部署前使用其中一个文件做线上试拷及校验；主 manifest 仍包含该文件，后续由引擎校验已有内容后记为 skipped。原始 208 条历史错误继续保留，不能据此推断补拷已完成；查看独立状态和回执确认结果。另有 48 条中断扫描回执涉及 40 个任务，这些任务均已不在当前待处理队列，扫描结果仍需复核。
+
+SwanLab 复用原实验及 120 秒批量上报，在 `retry/` 下单独显示已校验文件数、总文件数、已校验 TB、总 TB、需关注文件数和运行状态；不改写主复制曲线。上报器由 supervisor 单独重启，主迁移未重启；服务端已确认 step 5421 的补拷指标。部署和服务端回读证据位于 `recovery/prior-error-retry-20261110/swanlab-deployment.json`。

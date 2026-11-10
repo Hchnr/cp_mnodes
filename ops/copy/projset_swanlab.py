@@ -29,6 +29,41 @@ def capacity_metrics(counts):
     return values
 
 
+def supplemental_metrics(run):
+    """Summarize independent file retries without changing main-copy totals."""
+    records = []
+    for status_path in (run / 'recovery').glob('*retry*/status.json'):
+        try:
+            status = json.loads(status_path.read_text())
+            manifest = json.loads((status_path.parent / 'manifest.json').read_text())
+            counts = status['counts']
+            fields = ('verified_bytes', 'copied', 'skipped', 'error', 'changed', 'conflict', 'unsupported')
+            numbers = {key: int(counts.get(key, 0)) for key in fields}
+            total_files = int(status['total_files'])
+            entries = manifest['entries']
+            total_bytes = sum(int(entry['size']) for entry in entries)
+            if (total_files != len(entries) or total_files < 0 or total_bytes < 0 or
+                    any(value < 0 for value in numbers.values()) or
+                    numbers['copied'] + numbers['skipped'] > total_files or
+                    numbers['verified_bytes'] > total_bytes):
+                continue
+            records.append((status.get('state'), numbers, total_files, total_bytes))
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            continue
+    if not records:
+        return {}
+    return {
+        'retry/verified_TB': sum(counts['verified_bytes'] for _, counts, _, _ in records) / 1e12,
+        'retry/total_TB': sum(total for _, _, _, total in records) / 1e12,
+        'retry/verified_files': sum(counts['copied'] + counts['skipped']
+                                    for _, counts, _, _ in records),
+        'retry/total_files': sum(total for _, _, total, _ in records),
+        'retry/attention_files': sum(sum(counts.get(key, 0) for key in ('error', 'changed', 'conflict', 'unsupported'))
+                                     for _, counts, _, _ in records),
+        'retry/running': sum(state == 'running' for state, _, _, _ in records),
+    }
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('--run', type=Path, required=True)
@@ -90,6 +125,7 @@ def main():
                 values['node/'+node+'/copied_TB'] = info['counts'].get('copied_bytes', 0)/1e12
                 values['node/'+node+'/heartbeat_age_seconds'] = info['age']
             values.update(overview_metrics(status))
+            values.update(supplemental_metrics(args.run))
             values["overview/总进度看板"] = swanlab.echarts.Table().add(
                 ["指标", "当前值", "口径说明"], overview_rows(status))
             # One combined batch per interval; overview table has no hardware probes.
