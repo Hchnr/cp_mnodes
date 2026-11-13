@@ -79,7 +79,11 @@ def ssh(cfg, node, command):
     host=cfg['hosts'][node]
     addresses=cfg.get('addresses',{})
     pinned=['-o','HostKeyAlias='+host] if node in addresses else []
-    return ['ssh','-T','-o','BatchMode=yes','-o','ConnectTimeout=10','-o','ServerAliveInterval=15','-o','ServerAliveCountMax=4','-o','StrictHostKeyChecking=yes','-o','UserKnownHostsFile='+cfg['known_hosts'],'-i',cfg['key'],*pinned,addresses.get(node,host),command]
+    disable_agent=cfg.get('disable_ssh_agent',False)
+    if not isinstance(disable_agent,bool):
+        raise ValueError('disable_ssh_agent must be a boolean')
+    agent_options=['-o','IdentityAgent=none','-o','IdentitiesOnly=yes'] if disable_agent else []
+    return ['ssh','-T','-o','BatchMode=yes','-o','ConnectTimeout=10','-o','ServerAliveInterval=15','-o','ServerAliveCountMax=4','-o','StrictHostKeyChecking=yes','-o','UserKnownHostsFile='+cfg['known_hosts'],'-i',cfg['key'],*agent_options,*pinned,addresses.get(node,host),command]
 
 
 FENCE = r'''

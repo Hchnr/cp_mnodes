@@ -57,7 +57,28 @@ def test_pinned_address_preserves_host_key_verification(tmp_path, monkeypatch):
     for args in (copy.ssh('node', 'true'), supervisor.ssh(cfg, 'node', 'true')):
         assert 'HostKeyAlias=node.example' in args
         assert 'StrictHostKeyChecking=yes' in args
+        assert 'IdentityAgent=none' not in args
         assert args[-2:] == ['192.0.2.1', 'true']
+
+
+def test_ssh_agent_bypass_is_explicit_and_retains_key_pinning(tmp_path, monkeypatch):
+    cfg = {'hosts': {'node': 'node.example'}, 'addresses': {'node': '192.0.2.1'},
+           'known_hosts': '/safe/known_hosts', 'key': '/safe/key', 'disable_ssh_agent': True}
+    path = tmp_path/'ssh.json'
+    monkeypatch.setenv('PROJSET_SSH_TOPOLOGY', str(path))
+    path.write_text(json.dumps(cfg))
+    for args in (copy.ssh('node', 'true'), supervisor.ssh(cfg, 'node', 'true')):
+        assert 'IdentityAgent=none' in args
+        assert 'IdentitiesOnly=yes' in args
+        assert 'HostKeyAlias=node.example' in args
+        assert 'StrictHostKeyChecking=yes' in args
+        assert args[-2:] == ['192.0.2.1', 'true']
+    cfg['disable_ssh_agent'] = 'true'
+    path.write_text(json.dumps(cfg))
+    with pytest.raises(ValueError):
+        copy.ssh('node', 'true')
+    with pytest.raises(ValueError):
+        supervisor.ssh(cfg, 'node', 'true')
 
 
 def test_detach_propagates_generation(monkeypatch, tmp_path):
