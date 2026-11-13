@@ -184,6 +184,46 @@ snapshot.snapshot(sys.argv[2],sys.argv[3],page_size=4,hook=stop)
         self.assertEqual(result['capture_id'], self.identity)
         self.assertEqual(self.dump(self.dest), expected)
 
+    def test_local_integrity_check_accounts_for_reads_on_create_and_resume(self):
+        directory = self.root / 'large'; directory.mkdir()
+        source = directory / capture.LEGACY
+        dest = directory / capture.SNAPSHOT
+        db = sqlite3.connect(source)
+        db.executescript(SCHEMA)
+        with db:
+            db.execute('insert into meta values(?,?)', ('stats', '{}'))
+            db.executemany('insert into dirs(rel) values(?)',
+                           [(json.dumps('dir-%05d/' % n + 'x' * 64),) for n in range(2048)])
+        db.close()
+        identity = capture.install(source)
+        pacer = pacing.ReadPacer(10**9, max_batch=512 * 1024)
+        created = snapshot.snapshot(source, dest, page_size=32, pacer=pacer,
+                                    advise=pacing.disable_sqlite_readahead)
+        pacer.throttle()  # The 2,048-row check must not leave the full read unpaid.
+        resumed = snapshot.snapshot(source, dest, page_size=32, pacer=pacer,
+                                    advise=pacing.disable_sqlite_readahead)
+        pacer.throttle()
+        self.assertEqual(created['capture_id'], identity)
+        self.assertTrue(resumed['already_completed'])
+        self.assertEqual(self.dump(source), self.dump(dest))
+
+    def test_integrity_guard_failure_is_propagated_and_resumable(self):
+        class Guard:
+            armed = False
+            def throttle(self):
+                if self.armed:
+                    raise RuntimeError('synthetic health guard')
+
+        guard = Guard()
+        def arm(stage, detail):
+            if stage == 'before_integrity_check':
+                guard.armed = True
+        with self.assertRaisesRegex(RuntimeError, 'synthetic health guard'):
+            snapshot.snapshot(self.source, self.dest, page_size=8, hook=arm, pacer=guard)
+        resumed = snapshot.snapshot(self.source, self.dest, page_size=8)
+        self.assertTrue(resumed['already_completed'])
+        self.assertEqual(self.dump(self.source), self.dump(self.dest))
+
     def test_changed_source_schema_fails_closed(self):
         def stop(stage, detail):
             if stage == 'copy_committed':
