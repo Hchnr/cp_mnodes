@@ -110,8 +110,16 @@ def run_worker(run, node, manifest, sha256, output, rate, recovery=None):
                     counts[old['status']] += 1
                     counts['verified_bytes'] += entry['size']
                     continue
-                result = recovery.engine.copy_entry(cfg['source'], cfg['target'], entry,
-                                                    cfg['run_id'] + '-retry', verify=True)
+                # Reuse the bounded ESTALE retry where the recovery version
+                # supports it. Older frozen deployments retain their original
+                # copy behavior and still record errors for later attention.
+                copy_with_retry = getattr(recovery, 'copy_entry_with_estale_retry', None)
+                if copy_with_retry is not None:
+                    result = copy_with_retry(cfg['source'], cfg['target'], entry,
+                                             cfg['run_id'] + '-retry')
+                else:
+                    result = recovery.engine.copy_entry(cfg['source'], cfg['target'], entry,
+                                                        cfg['run_id'] + '-retry', verify=True)
                 result.update(logical_bytes=entry['size'], finished=time.time(),
                               node=node, supplemental=True)
                 receipts.write(json.dumps(result, ensure_ascii=True, separators=(',', ':')) + '\n')

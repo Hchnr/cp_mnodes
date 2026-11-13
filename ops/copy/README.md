@@ -6,12 +6,17 @@
 |---|---|
 | `projset_copy.py` | `probe` 检查身份；`controller` 负责本地SQLite调度和共享清单；`worker` 执行有界扫描与复制；`status` 读取已有任务。controller/worker 只能针对已准备的独立控制目录显式启动。 |
 | `projset_recovery_copy.py` | 从共享日志恢复队列，复用未确认任务的有效回执，去重扫描结果；仅由守护进程启动。 |
-| `projset_recovery_supervisor.py` | CPU主节点守护与备用节点互相拉起，隔离旧进程后恢复；同时维护上报和导出进程。 |
+| `projset_parallel_receipts.py` | 将历史回执按逻辑节点并行重建并校验，失败时由恢复控制器回退串行流程。 |
+| `projset_recovery_supervisor.py` | 主、备用守护按锁检查并拉起对方；接管已运行进程，控制器退出后隔离旧工作进程并恢复，同时维护上报和导出。 |
+| `projset_retry_files.py` | 对显式清单中的普通文件限速重试，校验清单摘要和文件身份，保留冲突并持久记录回执；支持恢复版的有限 `ESTALE` 重试。 |
 | `projset_progress.py` | 只读显示进度；默认读取本机 `runs/projset-copy-current.json`，也支持 `--run`、`--watch`、`--json`。 |
 | `projset_swanlab.py` | 独立上报器，每120秒一次合并上报，复用持久run ID，异常退避；SwanLab环境与复制环境分离。 |
 | `projset_overview.py` | 总览纯函数：已确认容量、速度、节点消息新鲜度、异常和状态表。未掌握完整逻辑容量时不生成百分比或ETA。 |
 | `../diagnostics/projset_node_health.py` | 只读采集进程身份、cgroup配额、CPU限流、内存和OOM事件，保留内核日志权限不足的边界。 |
 | `../diagnostics/projset_outcomes.py` | 从固定回执前缀增量导出成功复用与异常路径、容量和原因；支持每120秒刷新报告，不自动重试、覆盖或删数据。 |
+| `../diagnostics/projset_error_reconciliation.py` | 关联历史错误与后续扫描、补拷和校验回执，导出待关注清单；证据不足或冲突时保持待关注。 |
+| `../diagnostics/projset_conflict_links.py` | 在限定的源、目标根内只读解析链接冲突；不同树的内容仍需另行校验。 |
+| `../diagnostics/projset_conflict_files.py` | 对选定的同大小普通文件冲突限速只读两轮 SHA-256；限制读取量并检查身份变化。 |
 | `../diagnostics/projset_usage.py` | 只读GNU du分布式计量与深度汇总；分配字节口径不能直接作复制逻辑容量分母。 |
 
 开发验证只使用私有临时目录及本地模拟节点，不连接生产broker或启动实际复制：

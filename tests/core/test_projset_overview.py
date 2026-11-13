@@ -33,5 +33,21 @@ class OverviewTests(unittest.TestCase):
         self.assertEqual(next(r[1] for r in rows if r[0]=='总进度百分比 / 预计完成时间'),'尚不能可靠计算')
         self.assertEqual(next(r[1] for r in rows if r[0]=='已确认容量'),'3.000 TB')
 
+    def test_rebuilding_never_reports_old_workers_or_speed(self):
+        s=self.status()
+        s.update(state='recovering', recovery_stage='completed-index',
+                 recovery_file='completed.jsonl', recovery_records=123,
+                 recovery_log_progress={'done_TB':0.02,'total_TB':0.04,'percent':50},
+                 prefetch_progress={'state':'running','done_TB':0.01,'total_TB':0.04,'percent':25})
+        v=m.overview_metrics(s,105)
+        self.assertEqual(v['overview/在线节点数'],0)
+        self.assertEqual(v['overview/近5分钟完成速度_TB每小时'],0)
+        rows=m.overview_rows(s,105)
+        self.assertEqual(next(r[1] for r in rows if r[0]=='当前日志已读记录'),'123')
+        self.assertEqual(next(r[1] for r in rows if r[0]=='恢复阶段'),'completed-index')
+        self.assertIn('50.0%',next(r[1] for r in rows if r[0]=='当前阶段日志读取进度'))
+        self.assertIn('25.0%',next(r[1] for r in rows if r[0]=='历史回执提前读取'))
+        self.assertIn('尚未恢复复制', rows[0][2])
+
 
 if __name__=='__main__':unittest.main()

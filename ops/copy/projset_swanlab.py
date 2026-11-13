@@ -29,6 +29,111 @@ def capacity_metrics(counts):
     return values
 
 
+def recovery_log_progress(run, status, proc_root=Path('/proc'), now=None):
+    """Measure the current journal stage, not the whole copy progress."""
+    if status.get('state') != 'recovering':
+        return None
+    stage = status.get('recovery_stage')
+    kind = {'completed-index': 'completed', 'tasks': 'tasks'}.get(stage)
+    if not kind and stage != 'receipts-parallel':
+        return None
+    try:
+        supervisor = json.loads((run/'recovery'/'supervisor.json').read_text())
+        now = time.time() if now is None else now
+        if supervisor.get('state') != 'running' or not 0 <= now-supervisor['updated'] <= 60:
+            return None
+        pid = int(supervisor['controller_pid'])
+        proc = proc_root/str(pid)
+        argv = (proc/'cmdline').read_bytes().split(b'\0')
+        if (b'controller' not in argv or str(run).encode() not in argv or
+                not any(x.endswith(b'/projset_recovery_copy.py') for x in argv)):
+            return None
+        if stage == 'receipts-parallel':
+            attempt = supervisor['attempt']
+            if not isinstance(attempt, str) or not attempt or any(c not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_' for c in attempt):
+                return None
+            folder = run/'recovery'/('receipt-shards-'+attempt)
+            manifest = json.loads((folder/'manifest.json').read_text())
+            if manifest['attempt'] != attempt:
+                return None
+            node_totals = manifest['node_total_bytes']
+            total = int(manifest['total_bytes'])
+            if total <= 0 or any(int(x) < 0 for x in node_totals.values()) or sum(int(x) for x in node_totals.values()) != total:
+                return None
+            done = 0
+            for node, limit in node_totals.items():
+                if not node or any(c not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_' for c in node):
+                    return None
+                for suffix in ('.result.json', '.progress.json'):
+                    try:
+                        item = json.loads((folder/(node+suffix)).read_text())
+                        if item['node'] != node or int(item['total_bytes']) != int(limit):
+                            return None
+                        n = int(item['done_bytes'])
+                        if not 0 <= n <= int(limit):
+                            return None
+                        done += n
+                        break
+                    except FileNotFoundError:
+                        continue
+            return {'stage': stage, 'done_TB': done/1e12, 'total_TB': total/1e12,
+                    'percent': 100*done/total}
+        paths = [run/(kind+'.jsonl')] + sorted((run/'recovery').glob(kind+'.*.jsonl'))
+        sizes = [(path, path.stat().st_size) for path in paths]
+        sizes = [(path, size) for path, size in sizes if size > 0]
+        total = sum(size for _, size in sizes)
+        if not total:
+            return None
+        for fd in (proc/'fd').iterdir():
+            try:
+                target = Path(os.readlink(fd))
+                if target.name != status.get('recovery_file'):
+                    continue
+                info = (proc/'fdinfo'/fd.name).read_text().splitlines()
+                pos = int(next(line.split()[1] for line in info if line.startswith('pos:')))
+                preceding = 0
+                for path, size in sizes:
+                    if path == target:
+                        done = preceding + min(max(pos, 0), size)
+                        return {'stage': status['recovery_stage'], 'done_TB': done/1e12,
+                                'total_TB': total/1e12, 'percent': 100*done/total}
+                    preceding += size
+            except (OSError, ValueError, StopIteration):
+                continue
+    except (OSError, ValueError, KeyError, TypeError, OverflowError, AttributeError):
+        pass
+    return None
+
+
+def prefetch_progress(run, now=None):
+    """Report read-only receipt prefetch separately from copied data."""
+    try:
+        state = json.loads((run/'recovery'/'prefetch-status.json').read_text())
+        name = state['state']
+        if name not in ('running', 'ready', 'error'):
+            return None
+        try:
+            reuse = json.loads((run/'recovery'/'prefetch-reuse.json').read_text())
+            if reuse.get('attempt') == state.get('parent_attempt'):
+                if reuse.get('state') == 'used':
+                    name = 'used'
+                elif reuse.get('state') == 'rejected':
+                    name = 'rejected'
+        except (OSError, ValueError, TypeError, AttributeError):
+            pass
+        now = time.time() if now is None else now
+        progress = {'state': name, 'age_seconds': max(0, now-float(state['updated']))}
+        if name in ('running', 'ready', 'used'):
+            total = int(state['total_bytes'])
+            done = total if name in ('ready', 'used') else int(state['done_bytes'])
+            if total <= 0 or not 0 <= done <= total:
+                return None
+            progress.update(done_TB=done/1e12, total_TB=total/1e12, percent=100*done/total)
+        return progress
+    except (OSError, ValueError, KeyError, TypeError, OverflowError, AttributeError):
+        return None
+
+
 def supplemental_metrics(run):
     """Summarize independent file retries without changing main-copy totals."""
     records = []
@@ -106,6 +211,12 @@ def main():
                 state.update(run_id=run.id, url=run.url, run_path=run.path)
                 save(statepath, state)
             status = json.loads((args.run/'status.json').read_text())
+            recovery_progress = recovery_log_progress(args.run, status)
+            if recovery_progress is not None:
+                status['recovery_log_progress'] = recovery_progress
+            prefetch = prefetch_progress(args.run)
+            if prefetch is not None:
+                status['prefetch_progress'] = prefetch
             step = max(int(state.get('step', -1)) + 1, int((status['updated']-status['started']) // args.interval))
             counts = status['counts']
             values = capacity_metrics(counts)
@@ -125,6 +236,18 @@ def main():
                 values['node/'+node+'/copied_TB'] = info['counts'].get('copied_bytes', 0)/1e12
                 values['node/'+node+'/heartbeat_age_seconds'] = info['age']
             values.update(overview_metrics(status))
+            if recovery_progress is not None:
+                values.update({'recovery/当前阶段日志已读_TB': recovery_progress['done_TB'],
+                               'recovery/当前阶段日志总量_TB': recovery_progress['total_TB'],
+                               'recovery/当前阶段日志读取百分比': recovery_progress['percent']})
+            if prefetch is not None:
+                values['recovery/回执预读状态'] = {'running': 1, 'ready': 2, 'used': 3,
+                                                'error': -1, 'rejected': -1}[prefetch['state']]
+                values['recovery/回执预读状态延迟秒'] = prefetch['age_seconds']
+                if 'percent' in prefetch:
+                    values.update({'recovery/回执预读已读_TB': prefetch['done_TB'],
+                                   'recovery/回执预读总量_TB': prefetch['total_TB'],
+                                   'recovery/回执预读百分比': prefetch['percent']})
             values.update(supplemental_metrics(args.run))
             values["overview/总进度看板"] = swanlab.echarts.Table().add(
                 ["指标", "当前值", "口径说明"], overview_rows(status))

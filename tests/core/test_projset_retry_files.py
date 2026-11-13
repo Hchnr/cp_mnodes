@@ -23,6 +23,45 @@ recovery = load('test_recovery_for_retry', REPO / 'ops/copy/projset_recovery_cop
 
 
 class RetryTests(unittest.TestCase):
+    def test_transient_estale_is_retried_and_recorded_once(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source, target = root / 'source', root / 'target'
+            source.mkdir(); target.mkdir()
+            (source / 'file').write_bytes(b'payload')
+            run = root / 'run'
+            output = run / 'recovery' / 'retry'
+            output.mkdir(parents=True)
+            (run / 'config.json').write_text(json.dumps({
+                'source': str(source), 'target': str(target), 'run_id': 'test',
+            }))
+            entry = dict(recovery.engine._record((source / 'file').stat()),
+                         rel='file', kind='file')
+            manifest = output / 'manifest.json'
+            manifest.write_text(json.dumps({'entries': [entry]}))
+            digest = hashlib.sha256(manifest.read_bytes()).hexdigest()
+            original = recovery.engine.copy_entry
+            attempts = []
+
+            def transient(*args, **kwargs):
+                attempts.append(1)
+                if len(attempts) == 1:
+                    return {'rel': 'file', 'status': 'error',
+                            'detail': 'OSError: [Errno 116] Stale file handle'}
+                return original(*args, **kwargs)
+
+            try:
+                with mock.patch.object(recovery, 'validate'), \
+                     mock.patch.object(recovery.engine, 'copy_entry', side_effect=transient):
+                    retry.run_worker(run, 'node', manifest, digest, output, 10**9, recovery)
+                receipts = retry.latest_receipts(output / 'receipts.jsonl')
+                self.assertEqual(receipts['file']['status'], 'copied')
+                self.assertEqual(receipts['file']['estale_retries'], 1)
+                self.assertEqual((target / 'file').read_bytes(), b'payload')
+                self.assertEqual(len(attempts), 2)
+            finally:
+                recovery.engine.configure_rate_limit(0)
+
     def test_retry_preserves_conflicts_and_resumes_verified_files(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -58,7 +97,9 @@ class RetryTests(unittest.TestCase):
                 with (output / 'receipts.jsonl').open('ab') as stream:
                     stream.write(b'{"rel":"partial')
                 (target / 'second').unlink()
-                retry.run_worker(run, 'node', manifest, digest, output, 10**9, recovery)
+                # Older frozen recovery modules do not expose the retry helper.
+                with mock.patch.object(recovery, 'copy_entry_with_estale_retry', None):
+                    retry.run_worker(run, 'node', manifest, digest, output, 10**9, recovery)
                 status = json.loads((output / 'status.json').read_text())
                 self.assertEqual(status['state'], 'finished')
                 self.assertEqual(status['counts']['copied'], 2)
