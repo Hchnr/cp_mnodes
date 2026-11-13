@@ -158,10 +158,14 @@ def scan():
     prepared = json.loads((WORK / 'prepared.json').read_text())
     baseline = safety.live_states()[1]
     start = time.monotonic()
+    last_health = [0.0]
     def health():
-        if time.monotonic() - start > 130:
+        now = time.monotonic()
+        if now - start > 130:
             raise TimeoutError('synthetic snapshot deadline reached')
-        safety.live_states(baseline)
+        if now - last_health[0] >= 5:
+            safety.live_states(baseline)
+            last_health[0] = now
     pacer = pacing.ReadPacer(512 * 1024, health=health, max_batch=512 * 1024)
     with tempfile.TemporaryDirectory(prefix=capture.MARKER + '-nfs-resume-', dir='/var/tmp') as directory:
         target = Path(directory) / capture.SNAPSHOT

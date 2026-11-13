@@ -211,6 +211,39 @@ def snapshot(source_path, destination_path, page_size=32, hook=None, pacer=None,
         if hook is not None:
             hook(stage, detail or {})
 
+    def check_integrity(target):
+        # integrity_check scans the local destination. Charge at SQLite's
+        # progress callbacks while holding no source transaction; a single
+        # SQLite operation can still overshoot before the next callback.
+        # SQLite callbacks cannot propagate exceptions directly, so interrupt
+        # the query and restore the original guard error outside the callback.
+        interrupted = []
+
+        def progress():
+            try:
+                charge('check local snapshot integrity')
+                return 0
+            except BaseException as error:
+                interrupted.append(error)
+                return 1
+
+        hit('before_integrity_check')
+        if pacer is not None:
+            target.set_progress_handler(progress, 128)
+        try:
+            try:
+                result = target.execute('pragma integrity_check').fetchone()
+            except sqlite3.OperationalError:
+                if interrupted:
+                    raise interrupted[0]
+                raise
+        finally:
+            if pacer is not None:
+                target.set_progress_handler(None, 0)
+        if result is None or result[0] != 'ok':
+            raise ValueError('snapshot integrity failed')
+        charge('finish local snapshot integrity check')
+
     lock_path = destination_path.with_name(destination_path.name + '.resume.lock')
     with lock_path.open('a+b') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -234,6 +267,9 @@ def snapshot(source_path, destination_path, page_size=32, hook=None, pacer=None,
                 target = sqlite3.connect(str(destination_path), timeout=3)
                 target.execute('pragma journal_mode=wal')
                 target.execute('pragma synchronous=full')
+                # Keep the local WAL small between committed pages. This is
+                # best effort: SQLite may still exceed a batch in one call.
+                target.execute('pragma wal_autocheckpoint=32')
                 static = dict(observed, source_identity=source_identity, version=1)
                 state = {'stage': 'copy', 'table_index': 0, 'last_key': None,
                          'copied': {name: 0 for name in KEYS}, 'cursor': 0}
@@ -253,17 +289,19 @@ def snapshot(source_path, destination_path, page_size=32, hook=None, pacer=None,
                     raise ValueError('synthetic source and destination are the same file')
                 target = sqlite3.connect(str(destination_path), timeout=3)
                 target.execute('pragma synchronous=full')
+                target.execute('pragma wal_autocheckpoint=32')
                 exists = target.execute("select 1 from sqlite_master where type='table' and name=?", (SESSION,)).fetchone()
                 if not exists:
                     if capture.verify(target) != observed['capture_id']:
                         raise ValueError('completed snapshot belongs to another source')
-                    if target.execute('pragma integrity_check').fetchone()[0] != 'ok':
-                        raise ValueError('completed snapshot integrity failed')
+                    check_integrity(target)
                     seq = target.execute('select coalesce(max(seq),0) from handoff_changes').fetchone()[0]
                     if seq > observed['base_seq']:
                         raise ValueError('completed snapshot boundary is ahead of source')
                     target.execute('pragma wal_checkpoint(truncate)')
+                    charge('checkpoint completed local snapshot')
                     target.execute('pragma journal_mode=delete')
+                    charge('finish completed snapshot validation')
                     return {'capture_id': observed['capture_id'], 'seq': seq, 'already_completed': True}
                 row = target.execute('select static,progress from ' + SESSION + ' where id=1').fetchone()
                 if row is None:
@@ -364,12 +402,13 @@ def snapshot(source_path, destination_path, page_size=32, hook=None, pacer=None,
                 hit('finalize_committed', {'seq': sequence})
                 if capture.verify(target) != static['capture_id']:
                     raise ValueError('snapshot capture identity differs')
-                if target.execute('pragma integrity_check').fetchone()[0] != 'ok':
-                    raise ValueError('snapshot integrity failed')
+                check_integrity(target)
                 if target.execute('select coalesce(max(seq),0) from handoff_changes').fetchone()[0] != sequence:
                     raise ValueError('snapshot capture boundary differs')
                 target.execute('pragma wal_checkpoint(truncate)')
+                charge('checkpoint local snapshot')
                 target.execute('pragma journal_mode=delete')
+                charge('finish snapshot validation')
                 return {'capture_id': static['capture_id'], 'base_seq': static['base_seq'],
                         'seq': sequence, 'copied': state['copied'], 'already_completed': False}
             raise ValueError('invalid snapshot checkpoint stage')
