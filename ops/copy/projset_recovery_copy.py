@@ -92,7 +92,11 @@ def ssh(node, command):
         host = config['hosts'][node]
         addresses = config.get('addresses', {})
         pinned = ['-o', 'HostKeyAlias='+host] if node in addresses else []
-        return ['ssh', '-T', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=4', '-o', 'StrictHostKeyChecking=yes', '-o', 'UserKnownHostsFile='+config['known_hosts'], '-i', config['key'], *pinned, addresses.get(node, host), command]
+        disable_agent = config.get('disable_ssh_agent', False)
+        if not isinstance(disable_agent, bool):
+            raise ValueError('disable_ssh_agent must be a boolean')
+        agent_options = ['-o', 'IdentityAgent=none', '-o', 'IdentitiesOnly=yes'] if disable_agent else []
+        return ['ssh', '-T', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=4', '-o', 'StrictHostKeyChecking=yes', '-o', 'UserKnownHostsFile='+config['known_hosts'], '-i', config['key'], *agent_options, *pinned, addresses.get(node, host), command]
     return ['ssh', '-T', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
             '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=4', node, command]
 
