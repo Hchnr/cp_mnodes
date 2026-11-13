@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 REPO=Path(__file__).resolve().parents[2]
 SOURCE=REPO/'ops/diagnostics/projset_outcomes.py'
@@ -34,6 +35,10 @@ class OutcomeTests(unittest.TestCase):
                 self.assertEqual(s['statuses']['conflict']['records'],2)
                 self.assertNotIn('copied',s['statuses']);self.assertNotIn('changed',s['statuses'])
                 self.assertEqual(json.loads((out/'checkpoint.json').read_text())['offsets']['n1']['offset'],len(prefix))
+                reconciled=json.loads((out/'reconciliation/summary.json').read_text())
+                self.assertEqual(reconciled['categories'], {'unclassified': 1})
+                self.assertEqual(reconciled['attention_records'], 1)
+                self.assertIn('reconciliation/REPORT.md', (out/'REPORT.md').read_text())
                 import csv
                 with (out/'conflict-paths.csv').open(encoding='utf-8-sig') as f:rows=list(csv.DictReader(f))
                 self.assertEqual(rows[0]['source_current_bytes'],'3');self.assertEqual(rows[0]['target_current_bytes'],'7')
@@ -44,6 +49,9 @@ class OutcomeTests(unittest.TestCase):
                 self.assertEqual(s['statuses']['skipped']['records'],1)
                 self.assertEqual(s['statuses']['changed']['records'],1)
                 self.assertEqual(s['new_selected_records'],0)
+                changed=json.loads((out/'changed-reconciliation/summary.json').read_text())
+                self.assertEqual(changed['attention_records'],1)
+                self.assertIn('changed-reconciliation/REPORT.md', (out/'REPORT.md').read_text())
                 self.assertEqual((dst/'conflict').read_text(),'keep!!!')
                 self.assertFalse(s['automatic_retry'])
             finally:m.SOURCE,m.TARGET=original
@@ -61,6 +69,18 @@ class OutcomeTests(unittest.TestCase):
             self.assertEqual(3,summary['statuses']['skipped']['records'])
             self.assertEqual(30,summary['statuses']['skipped']['recorded_source_bytes'])
             self.assertEqual(0,summary['new_selected_records'])
+
+    def test_reconciliation_failure_does_not_stop_original_export(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);run=root/'run';out=root/'out';(run/'nodes/n1').mkdir(parents=True)
+            (run/'nodes/n1/receipts.jsonl').write_text('')
+            (run/'status.json').write_text(json.dumps(dict(counts={},updated=1)))
+            with mock.patch.object(m.importlib.util,'spec_from_file_location',side_effect=OSError('fixture')):
+                m.export(run,out)
+            self.assertTrue((out/'summary.json').exists())
+            self.assertTrue((out/'error-paths.csv').exists())
+            self.assertEqual(json.loads((out/'reconciliation-health.json').read_text())['state'],'error')
+            self.assertEqual(json.loads((out/'changed-reconciliation-health.json').read_text())['state'],'error')
 
 
 if __name__=='__main__':unittest.main()

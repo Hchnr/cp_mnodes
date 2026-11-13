@@ -10,6 +10,7 @@ import collections
 import csv
 import datetime
 import fcntl
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -68,6 +69,45 @@ def csv_write(path,fields,rows):
         w=csv.DictWriter(f,fieldnames=fields,extrasaction='ignore');w.writeheader();w.writerows(rows)
         f.flush();os.fsync(f.fileno())
     os.replace(tmp,path)
+
+
+def reconcile_errors(run, out):
+    """Update derived resolution evidence without interrupting the main export."""
+    path = Path(__file__).resolve().with_name('projset_error_reconciliation.py')
+    if not path.is_file():
+        return False
+    try:
+        spec = importlib.util.spec_from_file_location('projset_error_reconciliation', path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        summary = module.reconcile(run, out, out/'reconciliation')
+        atomic(out/'reconciliation-health.json', dict(state='updated', updated=time.time(),
+                                                        historical_records=summary['historical_records'],
+                                                        attention_records=summary['attention_records']))
+        return True
+    except Exception as error:
+        atomic(out/'reconciliation-health.json', dict(state='error', updated=time.time(),
+                                                        error_type=type(error).__name__))
+        return False
+
+
+def reconcile_source_changes(run, out):
+    """Associate historical source changes with verified bounded retries."""
+    path = Path(__file__).resolve().with_name('projset_changed_reconciliation.py')
+    if not path.is_file():
+        return False
+    try:
+        spec = importlib.util.spec_from_file_location('projset_changed_reconciliation', path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        summary = module.reconcile(run, out, out/'changed-reconciliation', native, SOURCE, TARGET)
+        atomic(out/'changed-reconciliation-health.json', dict(state='updated', updated=time.time(),
+               historical_records=summary['historical_records'], attention_records=summary['attention_records']))
+        return True
+    except Exception as error:
+        atomic(out/'changed-reconciliation-health.json', dict(state='error', updated=time.time(),
+               error_type=type(error).__name__))
+        return False
 
 
 def export(run,out):
@@ -135,6 +175,8 @@ def export(run,out):
     for status in STATUSES:
         csv_write(out/(status+'-paths.csv'),fields,(x for x in rows if x['status']==status))
     csv_write(out/'attention-paths.csv',fields,attention)
+    reconciliation_updated = reconcile_errors(run, out)
+    changed_reconciliation_updated = reconcile_source_changes(run, out)
     grouped=sorted(groups.values(),key=lambda x:(x['status'],-x['recorded_source_bytes'],x['path_prefix']))
     for g in grouped:g['recorded_source_TB']=g['recorded_source_bytes']/1e12
     csv_write(out/'directory-summary.csv',['status','path_prefix','records','recorded_source_bytes','recorded_source_TB'],grouped)
@@ -147,22 +189,26 @@ def export(run,out):
         '',f'源：`{SOURCE}`；目标：`{TARGET}`。',
         '', '按持久化回执的固定字节前缀导出，源目录及复制仍在线；不是原子快照。数据量按记录时源逻辑大小计量，1 TB = 10^12 bytes。',
         '', '| 类别 | 记录数 | 记录时源容量（TB） | 普通文件容量（TB） | 完整路径清单 |', '|---|---:|---:|---:|---|']
-    labels={'skipped':'目标已有相同：成功复用','conflict':'目标冲突：保留目标','changed':'源变化：未完成本次复制','error':'处理错误：未成功','unsupported':'特殊对象：未复制'}
+    labels={'skipped':'目标已有相同：成功复用','conflict':'目标冲突：保留目标','changed':'源变化：未完成本次复制','error':'历史处理错误：查看复核','unsupported':'特殊对象：未复制'}
     for status in STATUSES:
         c=summary.get(status,dict(records=0,recorded_source_bytes=0,regular_file_bytes=0))
         lines.append(f"| {labels[status]} | {c['records']:,} | {c['recorded_source_bytes']/1e12:.12f} | {c['regular_file_bytes']/1e12:.12f} | [{status}-paths.csv]({status}-paths.csv) |")
-    lines+=['','- [所有需复核路径及当前两侧属性](attention-paths.csv)；[按目录汇总](directory-summary.csv)。',
+    lines+=['','- [历史异常路径及当前两侧属性](attention-paths.csv)；[按目录汇总](directory-summary.csv)。后续处理结果以复核清单为准。',
         '- CSV 包含源/目标绝对路径、记录时源字节/TB、节点、任务号、原因、回执位置。异常条目额外查询当前两侧类型、大小和链接目标。',
         '- skipped 是已经核对内容相同的成功复用，不等于漏拷；没有重新读取这些路径的数据或重新计算哈希。',
         '- symlink 的容量只是链接文本长度，**不是链接所指向整棵数据的容量**，不能把几十个链接冲突视作只有几KB数据受影响。',
         '- 记录数不保证是唯一文件数；目录/扫描错误也可记为结果，元数据警告可能和成功结果重叠。',
         '', '## 是否自动重试或更新',
         '', '原始回执保持不变；恢复后的回执追加到 `nodes/<node>/attempt-*/receipts.jsonl` 和 `issues.jsonl`；本报告和CSV现在每120秒增量更新，检查 summary.json 的 updated_beijing 确认新鲜度。',
-        '', '控制器和连接故障会由独立守护进程自动恢复未确认任务；已确认的文件结果仍保留。冲突、源变化和错误结果被记账后，该批次继续并结束；**不会自动重试这些结果，不会自动覆盖目标，也没有自动第二轮更新**。更新文档不等于重新复制。',
+        '', '控制器和连接故障会由独立守护进程自动恢复未确认任务；已记账异常不会自动重新入队，也不会自动覆盖目标或自动执行第二轮更新。显式清单补拷的后续结果以对应回执和复核清单为准。',
         '', '建议人工处理顺序：先看 error 的瞬态存储错误能否重新读取，再看 changed 的在线日志/进度文件是否已稳定；conflict 需决定保留哪一侧版本。此报告只读检查，没有代替你做覆盖、删除或重试。',
         '', '## 目标已有相同内容：容量最大的目录分组','', '| 相对路径前3层 | 记录数 | 容量（TB） |','|---|---:|---:|']
     for g in [x for x in grouped if x['status']=='skipped'][:15]:lines.append(f"| `{g['path_prefix'].replace('|','&#124;')}` | {g['records']:,} | {g['recorded_source_bytes']/1e12:.9f} |")
-    lines+=['','## 未成功条目','', '下表给相对路径；源绝对路径为 /share-mixed/projset/ + 相对路径，目标绝对路径为 /share-mixed/project/ + 相对路径。CSV提供两侧完整路径与当前属性。',
+    if reconciliation_updated:
+        lines += ['', '[历史错误的后续处理与待关注清单](reconciliation/REPORT.md)；该清单不改变原始回执或累计计数。']
+    if changed_reconciliation_updated:
+        lines += ['', '[历史源变化的后续处理与待关注清单](changed-reconciliation/REPORT.md)；校验和当前属性的检查均不构成在线快照。']
+    lines+=['','## 历史异常条目','', '下表为原始异常记录；后续可能已有单独处理，具体结果请查看复核清单。源绝对路径为 /share-mixed/projset/ + 相对路径，目标绝对路径为 /share-mixed/project/ + 相对路径。CSV提供两侧完整路径与当前属性。',
         '', '| 类别 | 相对路径 | 类型 | 记录时源容量（TB） | 原因 |','|---|---|---|---:|---|']
     for d in sorted(attention,key=lambda x:(x['status'],x['relative_path'])):
         clean=lambda x:str(x).replace('|','&#124;').replace('\n',' ')
