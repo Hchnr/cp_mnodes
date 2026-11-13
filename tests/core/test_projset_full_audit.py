@@ -56,9 +56,36 @@ class FullAuditTests(unittest.TestCase):
         for invalid in ({'version': 1.0}, {'version': 1, 'default': {'threads': True}},
                         {'version': 1, 'default': {'threads': 17}},
                         {'version': 1, 'default': {'prefetch': 5}},
-                        {'version': 1, 'nodes': {'unknown': {}}}):
+                        {'version': 1, 'nodes': {'unknown': {}}},
+                        {'version': 1, 'controller': {'sqlite_cache_mib': True}},
+                        {'version': 1, 'controller': {'sqlite_cache_mib': 31}},
+                        {'version': 1, 'controller': {'sqlite_cache_mib': 513}},
+                        {'version': 1, 'controller': {'sqlite_cache_mib': 128.0}},
+                        {'version': 1, 'controller': {'unknown': 128}}):
             with self.subTest(invalid=invalid), self.assertRaises(ValueError):
                 audit.tuning_settings(invalid, ['one', 'two'])
+
+    def test_controller_cache_changes_do_not_change_journaling_or_lose_commits(self):
+        db = audit.database(self.root / 'cache-test.sqlite3')
+        try:
+            self.assertEqual(db.execute('pragma cache_size').fetchone()[0], -32768)
+            before = (db.execute('pragma journal_mode').fetchone()[0],
+                      db.execute('pragma synchronous').fetchone()[0])
+            db.execute('insert into dirs(rel) values(?)', (audit.encoded('durable'),))
+            db.commit()
+            for cache in (128, 512, 32):
+                settings = audit.controller_tuning({'controller': {'sqlite_cache_mib': cache}})
+                audit.apply_controller_tuning(db, settings)
+                self.assertEqual(db.execute('pragma cache_size').fetchone()[0], -cache * 1024)
+                self.assertEqual((db.execute('pragma journal_mode').fetchone()[0],
+                                  db.execute('pragma synchronous').fetchone()[0]), before)
+                self.assertIsNotNone(db.execute('select id from dirs where rel=?',
+                                                (audit.encoded('durable'),)).fetchone())
+        finally:
+            db.close()
+        with sqlite3.connect(self.root / 'cache-test.sqlite3') as reopened:
+            self.assertIsNotNone(reopened.execute('select id from dirs where rel=?',
+                                                  (audit.encoded('durable'),)).fetchone())
 
     def test_round_robin_spreads_limited_available_work(self):
         allocations = audit.allocate_round_robin(list(range(7)), {'one': 4, 'two': 1, 'three': 4})
@@ -250,7 +277,8 @@ class FullAuditTests(unittest.TestCase):
             time.sleep(.25)
             self.assertEqual(len(list((work / 'started').iterdir())), 1)
             new = work / 'new-tuning.json'
-            new.write_text(json.dumps({'version': 1, 'default': {'threads': 4, 'prefetch': 2}}))
+            new.write_text(json.dumps({'version': 1, 'default': {'threads': 4, 'prefetch': 2},
+                                       'controller': {'sqlite_cache_mib': 128}}))
             os.replace(new, work / 'tuning.json')
             wait_started(4)
             self.assertEqual((work / 'worker-pid').read_text(), worker_pid)
@@ -262,6 +290,7 @@ class FullAuditTests(unittest.TestCase):
             self.assertEqual(status['done_dirs'], 9)
             self.assertEqual(status['counts']['files'], 9)
             self.assertEqual(status['node_tuning']['one']['threads'], 4)
+            self.assertEqual(status['controller_tuning'], {'sqlite_cache_mib': 128})
         finally:
             (work / 'release-all').write_text('release')
             if proc.poll() is None:

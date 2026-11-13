@@ -37,6 +37,8 @@ THREADS = 4
 MAX_THREADS = 16
 MAX_PREFETCH = 4
 TUNING_RELOAD_SECONDS = 10
+DEFAULT_SQLITE_CACHE_MIB = 32
+MAX_SQLITE_CACHE_MIB = 512
 
 
 class ConcurrencyGate:
@@ -81,7 +83,7 @@ class ConcurrencyGate:
 
 def tuning_settings(value, nodes):
     """Validate bounded live tuning, returning a setting for every node."""
-    if not isinstance(value, dict) or set(value) - {'version', 'default', 'nodes'}:
+    if not isinstance(value, dict) or set(value) - {'version', 'default', 'nodes', 'controller'}:
         raise ValueError('invalid tuning fields')
     if type(value.get('version')) is not int or value['version'] != 1:
         raise ValueError('unsupported tuning version')
@@ -89,6 +91,7 @@ def tuning_settings(value, nodes):
     overrides = value.get('nodes', {})
     if not isinstance(default, dict) or not isinstance(overrides, dict) or set(overrides) - set(nodes):
         raise ValueError('invalid tuning nodes or defaults')
+    controller_tuning(value)
 
     def parse(settings, base):
         if not isinstance(settings, dict) or set(settings) - {'threads', 'prefetch'}:
@@ -102,6 +105,25 @@ def tuning_settings(value, nodes):
 
     base = parse(default, {'threads': THREADS, 'prefetch': 1})
     return {node: parse(overrides.get(node, {}), base) for node in nodes}
+
+
+def controller_tuning(value):
+    """Validate the bounded, connection-local SQLite page cache setting."""
+    controller = value.get('controller', {})
+    if not isinstance(controller, dict) or set(controller) - {'sqlite_cache_mib'}:
+        raise ValueError('invalid controller tuning')
+    cache = controller.get('sqlite_cache_mib', DEFAULT_SQLITE_CACHE_MIB)
+    if type(cache) is not int or not DEFAULT_SQLITE_CACHE_MIB <= cache <= MAX_SQLITE_CACHE_MIB:
+        raise ValueError('invalid SQLite page cache size')
+    return {'sqlite_cache_mib': cache}
+
+
+def apply_controller_tuning(db, settings):
+    """Apply only the per-connection cache limit; durability is unchanged."""
+    cache_kib = settings['sqlite_cache_mib'] * 1024
+    db.execute('pragma cache_size=-%d' % cache_kib)
+    if db.execute('pragma cache_size').fetchone()[0] != -cache_kib:
+        raise RuntimeError('SQLite page cache limit did not take effect')
 
 
 def allocate_round_robin(rows, capacities):
@@ -283,7 +305,7 @@ def database(path, root_rel=''):
     db.execute('pragma journal_mode=TRUNCATE')
     db.execute('pragma synchronous=FULL')
     db.execute('pragma temp_store=MEMORY')
-    db.execute('pragma cache_size=-32768')
+    db.execute('pragma cache_size=-%d' % (DEFAULT_SQLITE_CACHE_MIB * 1024))
     db.executescript('''
       create table if not exists dirs(
         id integer primary key, rel text not null unique, state integer not null default 0,
@@ -487,6 +509,7 @@ def controller(run, work):
         reporter = None
         reporter_retry_at = 0
         settings = tuning_settings({'version': 1}, nodes)
+        controller_settings = controller_tuning({'version': 1})
         tuning_checked = 0.0
         tuning_loaded = False
         tuning_error = None
@@ -543,7 +566,7 @@ def controller(run, work):
                           active_dirs=len(active), retry_dirs=waiting,
                           pending_dirs=stats['discovered_dirs']-stats['done_dirs']-len(active)-waiting,
                           counts=counts, retries=stats['retries'], node_counts=stats['nodes'],
-                          node_tuning=settings, tuning_error=tuning_error,
+                          node_tuning=settings, controller_tuning=controller_settings, tuning_error=tuning_error,
                           scope_root=manifest.get('root_rel', ''), excluded=list(EXCLUDE),
                           verification='namespace, type, size, mtime and link text; no full content hash',
                           online_source_not_atomic=True)
@@ -556,14 +579,19 @@ def controller(run, work):
                     tuning_checked = time.monotonic()
                     try:
                         proposed = json.loads((work / 'tuning.json').read_text())
-                        settings = tuning_settings(proposed, nodes)
+                        new_settings = tuning_settings(proposed, nodes)
+                        new_controller_settings = controller_tuning(proposed)
+                        if new_controller_settings != controller_settings:
+                            apply_controller_tuning(db, new_controller_settings)
+                        settings = new_settings
+                        controller_settings = new_controller_settings
                         tuning_loaded = True
                         tuning_error = None
                     except FileNotFoundError:
                         # NFS lookups can briefly report a missing status or
                         # tuning file. Retain the last validated settings.
                         tuning_error = 'tuning_file_unavailable' if tuning_loaded else None
-                    except (OSError, ValueError, TypeError) as error:
+                    except (OSError, ValueError, TypeError, sqlite3.Error, RuntimeError) as error:
                         tuning_error = type(error).__name__
                 for node in nodes:
                     client = clients.get(node)
