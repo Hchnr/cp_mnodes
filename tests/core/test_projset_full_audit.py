@@ -9,6 +9,8 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import threading
+import time
 import unittest
 from unittest import mock
 
@@ -45,6 +47,226 @@ class FullAuditTests(unittest.TestCase):
         children = [item for c, _ in chunks for item in c]
         issues = [item for _, i in chunks for item in i]
         return counts, children, issues
+
+    def test_tuning_is_bounded_and_can_override_individual_nodes(self):
+        settings = audit.tuning_settings({'version': 1, 'default': {'threads': 8, 'prefetch': 2},
+                                          'nodes': {'one': {'threads': 3}}}, ['one', 'two'])
+        self.assertEqual(settings['one'], {'threads': 3, 'prefetch': 2})
+        self.assertEqual(settings['two'], {'threads': 8, 'prefetch': 2})
+        for invalid in ({'version': 1.0}, {'version': 1, 'default': {'threads': True}},
+                        {'version': 1, 'default': {'threads': 17}},
+                        {'version': 1, 'default': {'prefetch': 5}},
+                        {'version': 1, 'nodes': {'unknown': {}}}):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                audit.tuning_settings(invalid, ['one', 'two'])
+
+    def test_round_robin_spreads_limited_available_work(self):
+        allocations = audit.allocate_round_robin(list(range(7)), {'one': 4, 'two': 1, 'three': 4})
+        self.assertEqual([node for node, _ in allocations],
+                         ['one', 'two', 'three', 'one', 'three', 'one', 'three'])
+        self.assertEqual([row for _, row in allocations], list(range(7)))
+        with self.assertRaises(ValueError):
+            audit.allocate_round_robin([1], {'one': -1})
+
+    def test_worker_concurrency_changes_without_interrupting_active_scans(self):
+        gate = audit.ConcurrencyGate(1)
+        started = [threading.Event() for _ in range(3)]
+        released = [threading.Event() for _ in range(3)]
+        def scan(index):
+            started[index].set()
+            self.assertTrue(released[index].wait(5))
+        threads = [threading.Thread(target=gate.run, args=(scan, i)) for i in range(3)]
+        try:
+            threads[0].start()
+            self.assertTrue(started[0].wait(2))
+            threads[1].start()
+            self.assertFalse(started[1].wait(.1))
+            gate.set_limit(2)
+            self.assertTrue(started[1].wait(2))
+            gate.set_limit(1)
+            threads[2].start()
+            released[0].set()
+            self.assertFalse(started[2].wait(.1))
+            released[1].set()
+            self.assertTrue(started[2].wait(2))
+        finally:
+            for event in released:
+                event.set()
+            gate.stop()
+            for thread in threads:
+                if thread.ident is not None:
+                    thread.join(5)
+                    self.assertFalse(thread.is_alive())
+
+    def test_live_worker_applies_concurrency_settings_to_queued_scans(self):
+        run, work = self.root / 'dynamic-run', self.root / 'dynamic-work'
+        (run / 'recovery/code').mkdir(parents=True)
+        (work / 'code').mkdir(parents=True)
+        (work / 'started').mkdir()
+        (work / 'released').mkdir()
+        deployed = work / 'code/projset_full_audit.py'
+        deployed.write_bytes((ROOT / 'ops/diagnostics/projset_full_audit.py').read_bytes())
+        (work / 'manifest.json').write_text(json.dumps({'code_sha256': hashlib.sha256(deployed.read_bytes()).hexdigest()}))
+        (run / 'config.json').write_text('{}')
+        (run / 'recovery/code/projset_recovery_copy.py').write_text(textwrap.dedent('''
+            import sys
+            sys.path.insert(0, %r)
+            import migration_linux_open as native
+            def validate(run, cfg, node): pass
+        ''' % str(ROOT / 'src/core')))
+        wrapper = self.root / 'dynamic_worker.py'
+        wrapper.write_text(textwrap.dedent('''
+            import importlib.util, os, pathlib, time
+            spec = importlib.util.spec_from_file_location('auditor', %r)
+            module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+            module.SOURCE = os.environ['TEST_SOURCE']; module.TARGET = os.environ['TEST_TARGET']
+            work = pathlib.Path(%r)
+            def scan(native, source, target, rel, emit, **kwargs):
+                (work / 'started' / rel).write_text('started')
+                deadline = time.monotonic() + 10
+                while not (work / 'released' / rel).exists():
+                    if time.monotonic() > deadline: raise TimeoutError('test release')
+                    time.sleep(.01)
+                return {'files': 1, 'file_bytes': 1}
+            module.scan_directory = scan
+            module.worker(pathlib.Path(%r), work, 'one')
+        ''' % (str(deployed), str(work), str(run))))
+        env = dict(os.environ, TEST_SOURCE=str(self.source), TEST_TARGET=str(self.target))
+        proc = subprocess.Popen([sys.executable, '-S', '-B', str(wrapper)], env=env,
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                text=True, bufsize=1)
+        def send(value):
+            proc.stdin.write(json.dumps(value) + '\n'); proc.stdin.flush()
+        def started(count):
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                names = {p.name for p in (work / 'started').iterdir()}
+                if len(names) >= count:
+                    return names
+                time.sleep(.02)
+            self.fail('timed out waiting for %s scans' % count)
+        try:
+            self.assertTrue(select.select([proc.stdout], [], [], 10)[0])
+            self.assertTrue(json.loads(proc.stdout.readline())['dynamic_slots_v1'])
+            send({'event': 'settings', 'threads': 1})
+            for i in range(2):
+                send({'event': 'task', 'task': {'id': i + 1, 'attempt': 1, 'rel': 'd%d' % i}})
+            first = started(1)
+            time.sleep(.15)
+            self.assertEqual(len(list((work / 'started').iterdir())), 1)
+            send({'event': 'settings', 'threads': 2})
+            both = started(2)
+            send({'event': 'settings', 'threads': 1})
+            send({'event': 'task', 'task': {'id': 3, 'attempt': 1, 'rel': 'd2'}})
+            (work / 'released' / next(iter(first))).write_text('release')
+            time.sleep(.2)
+            self.assertEqual(len(list((work / 'started').iterdir())), 2)
+            (work / 'released' / next(iter(both - first))).write_text('release')
+            started(3)
+            (work / 'released/d2').write_text('release')
+            for _ in range(3):
+                self.assertTrue(select.select([proc.stdout], [], [], 10)[0])
+                self.assertEqual(json.loads(proc.stdout.readline())['event'], 'done')
+            send({'event': 'stop'})
+            self.assertEqual(proc.wait(timeout=10), 0)
+        finally:
+            for name in ('d0', 'd1', 'd2'):
+                (work / 'released' / name).write_text('release')
+            if proc.poll() is None:
+                proc.kill(); proc.wait(timeout=10)
+            for stream in (proc.stdin, proc.stdout, proc.stderr):
+                stream.close()
+
+    def test_controller_reloads_tuning_without_restarting_the_worker(self):
+        run, work = self.root / 'tuning-run', self.root / 'tuning-work'
+        (run / 'recovery/code').mkdir(parents=True)
+        (work / 'code').mkdir(parents=True)
+        (work / 'logs').mkdir()
+        (work / 'started').mkdir()
+        deployed = work / 'code/projset_full_audit.py'
+        deployed.write_bytes((ROOT / 'ops/diagnostics/projset_full_audit.py').read_bytes())
+        (work / 'manifest.json').write_text(json.dumps({'reporter': False,
+            'code_sha256': hashlib.sha256(deployed.read_bytes()).hexdigest()}))
+        (work / 'tuning.json').write_text(json.dumps({'version': 1,
+            'default': {'threads': 1, 'prefetch': 2}}))
+        db = audit.database(work / 'audit.sqlite3')
+        stats = json.loads(db.execute('select value from meta where key="stats"').fetchone()[0])
+        for index in range(8):
+            db.execute('insert into dirs(rel) values(?)', (audit.encoded('d%d' % index),))
+        stats['discovered_dirs'] += 8
+        db.execute('update meta set value=? where key="stats"', (audit.encoded(stats),))
+        db.commit(); db.close()
+        wrapper = self.root / 'reload_worker.py'
+        wrapper.write_text(textwrap.dedent('''
+            import importlib.util, os, pathlib, sys, time
+            args = dict(zip(sys.argv[1::2], sys.argv[2::2]))
+            work = pathlib.Path(args['--work'])
+            spec = importlib.util.spec_from_file_location('auditor', work / 'code/projset_full_audit.py')
+            module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+            module.SOURCE = os.environ['TEST_SOURCE']; module.TARGET = os.environ['TEST_TARGET']
+            (work / 'worker-pid').write_text(str(os.getpid()))
+            def scan(native, source, target, rel, emit, **kwargs):
+                (work / 'started' / (rel or 'root')).write_text('started')
+                deadline = time.monotonic() + 15
+                while not (work / 'release-all').exists():
+                    if time.monotonic() > deadline: raise TimeoutError('test release')
+                    time.sleep(.01)
+                return {'files': 1, 'file_bytes': 1}
+            module.scan_directory = scan
+            module.worker(pathlib.Path(args['--run']), work, args['--node'])
+        '''))
+        (run / 'recovery/code/projset_recovery_copy.py').write_text(textwrap.dedent('''
+            import shlex, sys
+            sys.path.insert(0, %r)
+            import migration_linux_open as native
+            def validate(run, cfg, node): pass
+            def ssh(node, command): return [sys.executable, '-S', '-B', %r] + shlex.split(command)[5:]
+        ''' % (str(ROOT / 'src/core'), str(wrapper))))
+        (run / 'config.json').write_text('{}')
+        (run / 'recovery/ssh.json').write_text(json.dumps({'hosts': {'one': 'fake'}, 'reporter_python': '/bin/true'}))
+        starter = self.root / 'reload_controller.py'
+        starter.write_text(textwrap.dedent('''
+            import importlib.util, pathlib
+            spec = importlib.util.spec_from_file_location('auditor', %r)
+            module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+            module.TUNING_RELOAD_SECONDS = .1
+            module.controller(pathlib.Path(%r), pathlib.Path(%r))
+        ''' % (str(deployed), str(run), str(work))))
+        env = dict(os.environ, TEST_SOURCE=str(self.source), TEST_TARGET=str(self.target))
+        proc = subprocess.Popen([sys.executable, '-S', '-B', str(starter)], env=env,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        def wait_started(count):
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
+                if len(list((work / 'started').iterdir())) >= count:
+                    return
+                if proc.poll() is not None:
+                    self.fail('controller exited before tuning was applied')
+                time.sleep(.02)
+            self.fail('timed out waiting for %s active scans' % count)
+        try:
+            wait_started(1)
+            worker_pid = (work / 'worker-pid').read_text()
+            time.sleep(.25)
+            self.assertEqual(len(list((work / 'started').iterdir())), 1)
+            new = work / 'new-tuning.json'
+            new.write_text(json.dumps({'version': 1, 'default': {'threads': 4, 'prefetch': 2}}))
+            os.replace(new, work / 'tuning.json')
+            wait_started(4)
+            self.assertEqual((work / 'worker-pid').read_text(), worker_pid)
+            (work / 'release-all').write_text('release')
+            _, stderr = proc.communicate(timeout=15)
+            self.assertEqual(proc.returncode, 0, stderr.decode(errors='replace'))
+            status = json.loads((work / 'status.json').read_text())
+            self.assertEqual(status['state'], 'finished')
+            self.assertEqual(status['done_dirs'], 9)
+            self.assertEqual(status['counts']['files'], 9)
+            self.assertEqual(status['node_tuning']['one']['threads'], 4)
+        finally:
+            (work / 'release-all').write_text('release')
+            if proc.poll() is None:
+                proc.kill(); proc.wait(timeout=10)
+            proc.stdout.close(); proc.stderr.close()
 
     def test_detects_missing_size_type_link_and_does_not_mutate_target(self):
         (self.source / 'missing').write_text('abc')
@@ -454,10 +676,22 @@ class FullAuditTests(unittest.TestCase):
         (self.source / 'nested').mkdir()
         (self.source / 'nested/missing').write_text('data')
         (self.target / 'nested').mkdir()
+        for index in range(12):
+            (self.source / ('queued-%02d' % index)).mkdir()
+            (self.target / ('queued-%02d' % index)).mkdir()
         script = ROOT / 'ops/diagnostics/projset_full_audit.py'
         deployed = code / script.name
         deployed.write_bytes(script.read_bytes())
         (work / 'manifest.json').write_text(json.dumps({'code_sha256': hashlib.sha256(deployed.read_bytes()).hexdigest()}))
+        (work / 'tuning.json').write_text(json.dumps({'version': 1,
+            'default': {'threads': 2, 'prefetch': 3}}))
+        db = audit.database(work / 'audit.sqlite3')
+        stats = json.loads(db.execute('select value from meta where key="stats"').fetchone()[0])
+        for index in range(12):
+            db.execute('insert into dirs(rel) values(?)', (audit.encoded('queued-%02d' % index),))
+        stats['discovered_dirs'] += 12
+        db.execute('update meta set value=? where key="stats"', (audit.encoded(stats),))
+        db.commit(); db.close()
         wrapper = self.root / 'fake_worker.py'
         wrapper.write_text(textwrap.dedent('''
             import importlib.util, json, os, pathlib, sys
@@ -466,7 +700,8 @@ class FullAuditTests(unittest.TestCase):
             marker = work / 'worker-disconnected'
             if args['--node'] == 'one' and not marker.exists():
                 marker.write_text('yes')
-                print(json.dumps({'event': 'ready', 'host': 'fake', 'pid': os.getpid()}), flush=True)
+                print(json.dumps({'event': 'ready', 'host': 'fake', 'pid': os.getpid(),
+                                  'dynamic_slots_v1': True}), flush=True)
                 for line in sys.stdin:
                     if json.loads(line)['event'] == 'task':
                         os._exit(7)
@@ -504,6 +739,9 @@ class FullAuditTests(unittest.TestCase):
         self.assertEqual(status['counts']['missing_target'], 1)
         self.assertIn('nested/missing', (work / 'issues.csv').read_text())
         self.assertFalse((self.target / 'nested/missing').exists())
+        with sqlite3.connect(work / 'audit.sqlite3') as db:
+            self.assertEqual(db.execute('select count(*) from dirs where state<>2').fetchone()[0], 0)
+            self.assertGreater(db.execute('select count(*) from dirs where attempt>1').fetchone()[0], 0)
 
     def test_transaction_failure_rolls_back_completion_and_resume_keeps_outbox(self):
         run, work = self.root / 'transaction-run', self.root / 'transaction-work'

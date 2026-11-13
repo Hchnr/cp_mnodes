@@ -34,6 +34,94 @@ SOURCE = '/share-mixed/projset'
 TARGET = '/share-mixed/project'
 EXCLUDE = ('eai_pwm/datasets/Sekai',)
 THREADS = 4
+MAX_THREADS = 16
+MAX_PREFETCH = 4
+TUNING_RELOAD_SECONDS = 10
+
+
+class ConcurrencyGate:
+    """Change a worker's scan concurrency without interrupting active scans."""
+
+    def __init__(self, limit):
+        self.condition = threading.Condition()
+        self.limit = self._validate(limit)
+        self.running = 0
+        self.stopped = False
+
+    @staticmethod
+    def _validate(limit):
+        if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= MAX_THREADS:
+            raise ValueError('invalid worker concurrency')
+        return limit
+
+    def set_limit(self, limit):
+        with self.condition:
+            self.limit = self._validate(limit)
+            self.condition.notify_all()
+
+    def run(self, function, task):
+        with self.condition:
+            while not self.stopped and self.running >= self.limit:
+                self.condition.wait()
+            if self.stopped:
+                return
+            self.running += 1
+        try:
+            function(task)
+        finally:
+            with self.condition:
+                self.running -= 1
+                self.condition.notify_all()
+
+    def stop(self):
+        with self.condition:
+            self.stopped = True
+            self.condition.notify_all()
+
+
+def tuning_settings(value, nodes):
+    """Validate bounded live tuning, returning a setting for every node."""
+    if not isinstance(value, dict) or set(value) - {'version', 'default', 'nodes'}:
+        raise ValueError('invalid tuning fields')
+    if type(value.get('version')) is not int or value['version'] != 1:
+        raise ValueError('unsupported tuning version')
+    default = value.get('default', {})
+    overrides = value.get('nodes', {})
+    if not isinstance(default, dict) or not isinstance(overrides, dict) or set(overrides) - set(nodes):
+        raise ValueError('invalid tuning nodes or defaults')
+
+    def parse(settings, base):
+        if not isinstance(settings, dict) or set(settings) - {'threads', 'prefetch'}:
+            raise ValueError('invalid node tuning')
+        result = dict(base, **settings)
+        ConcurrencyGate._validate(result['threads'])
+        prefetch = result['prefetch']
+        if not isinstance(prefetch, int) or isinstance(prefetch, bool) or not 1 <= prefetch <= MAX_PREFETCH:
+            raise ValueError('invalid worker prefetch')
+        return result
+
+    base = parse(default, {'threads': THREADS, 'prefetch': 1})
+    return {node: parse(overrides.get(node, {}), base) for node in nodes}
+
+
+def allocate_round_robin(rows, capacities):
+    """Spread a bounded batch of queue rows fairly across available nodes."""
+    slots = dict(capacities)
+    if any(not isinstance(count, int) or isinstance(count, bool) or count < 0 for count in slots.values()):
+        raise ValueError('invalid worker capacity')
+    result = []
+    iterator = iter(rows)
+    while any(slots.values()):
+        for node, free in list(slots.items()):
+            if not free:
+                continue
+            try:
+                row = next(iterator)
+            except StopIteration:
+                return result
+            result.append((node, row))
+            slots[node] -= 1
+    return result
 
 
 def encoded(value):
@@ -329,13 +417,17 @@ def worker(run, work, node):
             send({'event': 'retry', 'id': ident, 'attempt': attempt,
                   'detail': type(error).__name__ + ': ' + str(error)})
 
-    pool = concurrent.futures.ThreadPoolExecutor(max_workers=THREADS)
-    send({'event': 'ready', 'node': node, 'host': socket.gethostname(), 'pid': os.getpid()})
+    concurrency = ConcurrencyGate(THREADS)
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=MAX_THREADS)
+    send({'event': 'ready', 'node': node, 'host': socket.gethostname(), 'pid': os.getpid(),
+          'dynamic_slots_v1': True})
     try:
         for line in sys.stdin:
             msg = json.loads(line)
             if msg['event'] == 'task':
-                pool.submit(execute, msg['task'])
+                pool.submit(concurrency.run, execute, msg['task'])
+            elif msg['event'] == 'settings':
+                concurrency.set_limit(msg['threads'])
             elif msg['event'] == 'ack':
                 token = (msg['id'], msg['attempt'], msg['sequence'])
                 with lock:
@@ -346,7 +438,8 @@ def worker(run, work, node):
                 break
     finally:
         stopped.set()
-        pool.shutdown(wait=False)
+        concurrency.stop()
+        pool.shutdown(wait=False, cancel_futures=True)
         os.close(source_fd)
         os.close(target_fd)
     return 0
@@ -393,6 +486,11 @@ def controller(run, work):
         tick = 0
         reporter = None
         reporter_retry_at = 0
+        settings = tuning_settings({'version': 1}, nodes)
+        tuning_checked = 0.0
+        tuning_loaded = False
+        tuning_error = None
+        rotation = 0
 
         def reader(node, generation, proc):
             try:
@@ -430,7 +528,8 @@ def controller(run, work):
                 proc = subprocess.Popen(recovery.ssh(node, command), stdin=subprocess.PIPE,
                                         stdout=subprocess.PIPE, stderr=log, text=True, bufsize=1)
             clients[node] = {'process': proc, 'generation': generation, 'ready': False,
-                             'host': '', 'last': time.time()}
+                             'host': '', 'last': time.time(), 'dynamic_slots_v1': False,
+                             'sent_threads': None}
             threading.Thread(target=reader, args=(node, generation, proc), daemon=True).start()
             retry_at[node] = time.time() + 15
 
@@ -444,6 +543,7 @@ def controller(run, work):
                           active_dirs=len(active), retry_dirs=waiting,
                           pending_dirs=stats['discovered_dirs']-stats['done_dirs']-len(active)-waiting,
                           counts=counts, retries=stats['retries'], node_counts=stats['nodes'],
+                          node_tuning=settings, tuning_error=tuning_error,
                           scope_root=manifest.get('root_rel', ''), excluded=list(EXCLUDE),
                           verification='namespace, type, size, mtime and link text; no full content hash',
                           online_source_not_atomic=True)
@@ -452,6 +552,19 @@ def controller(run, work):
 
         try:
             while True:
+                if time.monotonic() - tuning_checked >= TUNING_RELOAD_SECONDS:
+                    tuning_checked = time.monotonic()
+                    try:
+                        proposed = json.loads((work / 'tuning.json').read_text())
+                        settings = tuning_settings(proposed, nodes)
+                        tuning_loaded = True
+                        tuning_error = None
+                    except FileNotFoundError:
+                        # NFS lookups can briefly report a missing status or
+                        # tuning file. Retain the last validated settings.
+                        tuning_error = 'tuning_file_unavailable' if tuning_loaded else None
+                    except (OSError, ValueError, TypeError) as error:
+                        tuning_error = type(error).__name__
                 for node in nodes:
                     client = clients.get(node)
                     if (client is None or client['process'].poll() is not None) and time.time() >= retry_at.get(node, 0):
@@ -483,7 +596,8 @@ def controller(run, work):
                         client['last'] = time.time()
                         event = msg['event']
                         if event == 'ready':
-                            client.update(ready=True, host=msg['host'])
+                            client.update(ready=True, host=msg['host'],
+                                          dynamic_slots_v1=msg.get('dynamic_slots_v1') is True)
                         elif event in ('chunk', 'done', 'retry'):
                             if consume(db, stats, node, msg):
                                 if event == 'chunk':
@@ -500,38 +614,60 @@ def controller(run, work):
                     db.execute('update meta set value=? where key="stats"', (encoded(stats),))
                 assignments = []
                 accepting = not (work / 'STOP').exists()
-                if accepting:
+                configuration_messages = []
+                for node in nodes:
+                    client = clients.get(node)
+                    if (not client or not client['ready'] or not client['dynamic_slots_v1'] or
+                            client['sent_threads'] == settings[node]['threads']):
+                        continue
+                    configuration_messages.append((node, settings[node]['threads']))
+                counts = collections.Counter(active.values())
+                ordered = nodes[rotation:] + nodes[:rotation]
+                capacity = {}
+                for node in ordered:
+                    client = clients.get(node)
+                    if not client or not client['ready']:
+                        continue
+                    limit = (settings[node]['threads'] * settings[node]['prefetch']
+                             if client['dynamic_slots_v1'] else THREADS)
+                    capacity[node] = max(0, limit - counts[node])
+                transaction_started = False
+                if accepting and sum(capacity.values()):
                     # Complete messages and the next leases atomically. This
                     # avoids a second durability sync for the same event loop.
                     if not batch:
                         db.execute('begin immediate')
-                    for node in nodes:
-                        client = clients.get(node)
-                        if not client or not client['ready']:
-                            continue
-                        free = THREADS - sum(owner == node for owner in active.values())
-                        for _ in range(free):
-                            row = db.execute('select id,rel,attempt from dirs where state=3 and next<=? order by next,id limit 1', (time.time(),)).fetchone()
-                            if row is None:
-                                row = db.execute('select id,rel,attempt from dirs where state=0 order by next,id limit 1').fetchone()
-                            if row is None:
-                                break
-                            ident, rel, attempt = row
-                            attempt += 1
-                            db.execute('update dirs set state=1,node=?,attempt=?,updated=? where id=?',
-                                       (node, attempt, time.time(), ident))
-                            active[ident] = node
-                            assignments.append((node, {'event': 'task', 'task':
-                                {'id': ident, 'attempt': attempt, 'rel': json.loads(rel),
-                                 'commit_final_chunk_v1': True}}))
-                if batch or accepting:
+                        transaction_started = True
+                    available = sum(capacity.values())
+                    rows = db.execute('select id,rel,attempt from dirs where state=3 and next<=? '
+                                      'order by next,id limit ?', (time.time(), available)).fetchall()
+                    if len(rows) < available:
+                        rows += db.execute('select id,rel,attempt from dirs where state=0 '
+                                           'order by next,id limit ?', (available - len(rows),)).fetchall()
+                    for node, (ident, rel, attempt) in allocate_round_robin(rows, capacity):
+                        attempt += 1
+                        db.execute('update dirs set state=1,node=?,attempt=?,updated=? where id=?',
+                                   (node, attempt, time.time(), ident))
+                        active[ident] = node
+                        assignments.append((node, {'event': 'task', 'task':
+                            {'id': ident, 'attempt': attempt, 'rel': json.loads(rel),
+                             'commit_final_chunk_v1': True}}))
+                    if assignments and nodes:
+                        rotation = (rotation + len(assignments)) % len(nodes)
+                if batch or transaction_started:
                     db.commit()
                 # Workers may only observe chunks and leases after all of the
                 # corresponding durable queue updates have committed.
+                for node, threads in configuration_messages:
+                    if send(node, {'event': 'settings', 'threads': threads}):
+                        clients[node]['sent_threads'] = threads
+                    else:
+                        clients[node]['ready'] = False
+                        clients[node]['process'].terminate()
                 for node, ack in acks:
                     send(node, ack)
                 for node, task in assignments:
-                    if not send(node, task):
+                    if clients[node]['ready'] and not send(node, task):
                         clients[node]['process'].terminate()
                 if time.time() - tick >= 10:
                     snapshot('running')
