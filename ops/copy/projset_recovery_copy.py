@@ -8,6 +8,7 @@ No old migration queues, active pointers, signals, or training hooks are used.
 import argparse
 import collections
 import concurrent.futures as cf
+import errno
 import fcntl
 import hashlib
 import json
@@ -24,6 +25,7 @@ import threading
 import time
 import uuid
 import glob
+import importlib.util
 
 CORE = Path(__file__).resolve().parents[2] / 'code'
 if not CORE.is_dir():
@@ -35,6 +37,10 @@ import migration_linux_open as native
 
 SOURCE = '/share-mixed/projset'
 TARGET = '/share-mixed/project'
+
+# Retry only a stale NFS handle, with a bounded delay.  An ordinary error,
+# conflict or changed source must retain the existing attention semantics.
+ESTALE_RETRY_DELAYS = (0.25, 1.0, 3.0)
 
 
 def atomic(path, data):
@@ -51,6 +57,25 @@ def read(path):
     return json.loads(Path(path).read_text())
 
 
+def stop_requested(run):
+    """Keep the old-cluster STOP fence while permitting one authorized generation."""
+    generation = os.environ.get('PROJSET_RECOVERY_GENERATION')
+    marker = run/'STOP'
+    if not generation:
+        return marker.exists()
+    try:
+        fence = read(run/'recovery'/'legacy-cluster-fence.json')
+        info = marker.stat()
+        if (fence['generation'] != generation or
+                (info.st_ino, info.st_size, info.st_mtime_ns) !=
+                (fence['marker_ino'], fence['marker_size'], fence['marker_mtime_ns']) or
+                marker.read_text() != fence['marker_content']):
+            return True
+        return (run/'STOP.requested').exists()
+    except (OSError, ValueError, KeyError, TypeError):
+        return True
+
+
 def durable(stream):
     stream.flush()
     os.fsync(stream.fileno())
@@ -64,7 +89,10 @@ def ssh(node, command):
     topology = os.environ.get('PROJSET_SSH_TOPOLOGY')
     if topology:
         config = read(topology)
-        return ['ssh', '-T', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=4', '-o', 'StrictHostKeyChecking=yes', '-o', 'UserKnownHostsFile='+config['known_hosts'], '-i', config['key'], config['hosts'][node], command]
+        host = config['hosts'][node]
+        addresses = config.get('addresses', {})
+        pinned = ['-o', 'HostKeyAlias='+host] if node in addresses else []
+        return ['ssh', '-T', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=4', '-o', 'StrictHostKeyChecking=yes', '-o', 'UserKnownHostsFile='+config['known_hosts'], '-i', config['key'], *pinned, addresses.get(node, host), command]
     return ['ssh', '-T', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
             '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=4', node, command]
 
@@ -114,18 +142,73 @@ def validate(run, cfg, node):
             raise ValueError('engine is not the frozen copy')
 
 
-def scan_directory(source, target, rel, emit, issue, expected_ino=None):
+def retry_estale(operation, wait=time.sleep, on_retry=None):
+    """Reopen an operation after ESTALE; leave all other failures untouched."""
+    try:
+        return operation()
+    except OSError as error:
+        if error.errno != errno.ESTALE:
+            raise
+        last_error = error
+    for delay in ESTALE_RETRY_DELAYS:
+        if wait(delay):
+            raise last_error
+        if on_retry is not None:
+            on_retry()
+        try:
+            return operation()
+        except OSError as error:
+            if error.errno != errno.ESTALE:
+                raise
+            last_error = error
+    raise last_error
+
+
+def copy_entry_with_estale_retry(source, target, entry, run_id, wait=time.sleep):
+    """Retry an ESTALE result using the same checked source snapshot and policy."""
+    result = engine.copy_entry(source, target, entry, run_id, verify=True)
+    retries = 0
+    for delay in ESTALE_RETRY_DELAYS:
+        if (result.get('status') != 'error' or
+                not result.get('detail', '').startswith('OSError: [Errno %d]' % errno.ESTALE)):
+            break
+        if wait(delay):
+            break
+        retries += 1
+        result = engine.copy_entry(source, target, entry, run_id, verify=True)
+    if retries:
+        result['estale_retries'] = retries
+    return result
+
+
+def scan_directory(source, target, rel, emit, issue, expected_ino=None, retry_wait=time.sleep):
     """Emit bounded, disjoint children/file tasks; never follow directory links."""
     engine._components(rel, allow_empty=True)
-    fd = native._open_absolute_directory(source) if not rel else native.open_parent_readonly(source, rel + '/_')[0]
+    retries = 0
+    def note_retry():
+        nonlocal retries
+        retries += 1
+    def open_source():
+        fd = native._open_absolute_directory(source) if not rel else native.open_parent_readonly(source, rel + '/_')[0]
+        try:
+            return fd, os.fstat(fd)
+        except BaseException:
+            os.close(fd)
+            raise
+    fd, before = retry_estale(open_source, retry_wait, note_retry)
     children, entries, size = [], [], 0
     try:
-        before = os.fstat(fd)
         if expected_ino is not None and before.st_ino != expected_ino:
             raise engine.SourceChanged('source directory replaced since discovery')
         # Source enumeration remains useful even if this destination conflicts.
         try:
-            engine.ensure_destination_directory(target, rel)
+            retry_estale(lambda: engine.ensure_destination_directory(target, rel), retry_wait, note_retry)
+        except OSError as error:
+            if error.errno == errno.ESTALE:
+                issue(dict(rel=rel, status='error', kind='directory',
+                           detail=type(error).__name__ + ': ' + str(error)))
+            else:
+                issue(dict(rel=rel, status='conflict', kind='directory', detail=str(error)))
         except Exception as error:
             issue(dict(rel=rel, status='conflict', kind='directory', detail=str(error)))
         def flush():
@@ -137,7 +220,25 @@ def scan_directory(source, target, rel, emit, issue, expected_ino=None):
             for child in iterator:
                 path = rel + '/' + child.name if rel else child.name
                 try:
-                    info = child.stat(follow_symlinks=False)
+                    try:
+                        info = child.stat(follow_symlinks=False)
+                        link = os.readlink(child.name, dir_fd=fd) if stat.S_ISLNK(info.st_mode) else None
+                    except OSError as error:
+                        if error.errno != errno.ESTALE:
+                            raise
+                        def reopen_child():
+                            parent, name = native.open_parent_readonly(source, path)
+                            try:
+                                current_parent = os.fstat(parent)
+                                if (current_parent.st_dev, current_parent.st_ino) != (before.st_dev, before.st_ino):
+                                    raise engine.SourceChanged('source directory replaced during stale-handle retry')
+                                info = os.stat(name, dir_fd=parent, follow_symlinks=False)
+                                link = os.readlink(name, dir_fd=parent) if stat.S_ISLNK(info.st_mode) else None
+                                return info, link
+                            finally:
+                                os.close(parent)
+                        note_retry()
+                        info, link = retry_estale(reopen_child, retry_wait, note_retry)
                     if info.st_dev != before.st_dev:
                         raise ValueError('nested filesystem: ' + path)
                     if stat.S_ISDIR(info.st_mode):
@@ -146,7 +247,7 @@ def scan_directory(source, target, rel, emit, issue, expected_ino=None):
                         entry = dict(engine._record(info), rel=path,
                                      kind='file' if stat.S_ISREG(info.st_mode) else 'symlink')
                         if entry['kind'] == 'symlink':
-                            entry['target'] = os.readlink(child.name, dir_fd=fd)
+                            entry['target'] = link
                         entries.append(entry)
                         size += info.st_size
                     else:
@@ -159,7 +260,10 @@ def scan_directory(source, target, rel, emit, issue, expected_ino=None):
         after = os.fstat(fd)
         if engine._identity(before) != engine._identity(after):
             issue(dict(rel=rel, kind='directory', status='changed', detail='directory changed during enumeration'))
-        return engine._record(before)
+        result = engine._record(before)
+        if retries:
+            result['estale_retries'] = retries
+        return result
     finally:
         os.close(fd)
 
@@ -237,7 +341,7 @@ def worker(run, node):
                     while not ack.wait(1):
                         if stop.is_set():
                             raise RuntimeError('control connection ended during scan')
-                info = scan_directory(cfg['source'], cfg['target'], task['rel'], emit, record, task.get('ino'))
+                info = scan_directory(cfg['source'], cfg['target'], task['rel'], emit, record, task.get('ino'), stop.wait)
                 send(dict(kind='directory', id=key, rel=task['rel'], source=info))
             else:
                 pending = set()
@@ -246,7 +350,7 @@ def worker(run, node):
                     if prior and resume_valid(entry, prior):
                         return
                     io_local.written = 0
-                    result = engine.copy_entry(cfg['source'], cfg['target'], entry, cfg['run_id'], verify=True)
+                    result = copy_entry_with_estale_retry(cfg['source'], cfg['target'], entry, cfg['run_id'], stop.wait)
                     record(dict(result, job=key, logical_bytes=entry['size'], nlink=entry['nlink'], _payload_written=io_local.written, finished=time.time()))
                 for entry in task['entries']:
                     pending.add(files.submit(one, entry))
@@ -307,8 +411,17 @@ def worker(run, node):
 
 def controller(run):
     cfg = read(run/'config.json')
+    if stop_requested(run):
+        raise RuntimeError('stop requested or cluster fence unavailable')
     lock = open('/tmp/' + cfg['run_id'] + '-controller.lock', 'a')
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    # Role locks on different containers are local.  The generation lock is on
+    # shared NFS and prevents two new-cluster controllers from rebuilding or
+    # issuing tasks concurrently after an anchor replacement.
+    generation_lock = None
+    if os.environ.get('PROJSET_RECOVERY_GENERATION'):
+        generation_lock = open(run/'recovery'/'controller-generation.lock', 'a')
+        fcntl.flock(generation_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     atomic(run/'controller.json', dict(pid=os.getpid(), host=socket.gethostname(), boot=Path('/proc/sys/kernel/random/boot_id').read_text().strip(), start=Path('/proc/self/stat').read_text().rsplit(') ',1)[1].split()[19], argv=sys.argv, started=time.time(), state='rebuilding'))
     recovery = run/'recovery'
     attempt = os.environ['PROJSET_ATTEMPT']
@@ -423,7 +536,7 @@ def controller(run):
                     if clients[node]['alive']:
                         send(node, dict(kind='ack', id=key))
                     blocked.remove((node, key))
-            stopping = (run/'STOP').exists()
+            stopping = stop_requested(run)
             if not stopping:
                 # Small or intermittent copy queues must not be consumed by
                 # the first nodes in config order. Water-fill one batch per
@@ -569,6 +682,8 @@ def rebuild(run, dbpath):
         monotonic = time.monotonic()
         if not force and monotonic - last_report < 30:
             return
+        if stop_requested(run):
+            raise RuntimeError('stop requested or cluster fence unavailable during rebuild')
         now = time.time()
         value = dict(state='rebuilding', stage=stage,
                      file=Path(path).name if path else '', records=seen,
@@ -577,7 +692,15 @@ def rebuild(run, dbpath):
         status_path = run/'status.json'
         try:
             status = read(status_path)
+            age_delta = max(0, now-status.get('updated', now))
+            for rate in status.get('rates', {}).values():
+                for key in ('seconds', 'write_Bps', 'copied_Bps', 'files_ps'):
+                    rate[key] = 0
+            for worker in status.get('workers', {}).values():
+                worker.update(ready=False, alive=False, active={},
+                              age=max(0, worker.get('age', 0))+age_delta)
             status.update(state='recovering', updated=now,
+                          controller_pid=os.getpid(), nodes_ready=0, active=0,
                           recovery_stage=stage, recovery_file=value['file'],
                           recovery_records=seen)
             atomic(status_path, status)
@@ -600,41 +723,74 @@ def rebuild(run, dbpath):
         except FileNotFoundError: pass
     db = sqlite3.connect(dbpath)
     db.executescript('pragma journal_mode=off; pragma synchronous=off; pragma cache_size=-32768; create table jobs(id integer primary key,type text,state text,payload text,node text); create table all_ids(id integer primary key); create table scanned(rel text primary key); create table files(rel text primary key); create table prior(rel text primary key,job integer,payload text);')
+    # Most historic jobs have already completed.  Index their IDs first so the
+    # multi-hundred-GB task payload need only be inserted for unfinished jobs.
+    # Preserve the full path/ID deduplication indexes and validate every
+    # completion reference after all task journals have been read.
+    fast = os.environ.get('PROJSET_FAST_REBUILD') == '1'
+    completed_paths = [run/'completed.jsonl'] + sorted(recovery.glob('completed.*.jsonl'))
+    if fast:
+        db.execute('create table completed_ids(id integer primary key)')
+        for path in completed_paths:
+            for row in progress_records(path, 'completed-index'):
+                db.execute('insert or ignore into completed_ids values(?)', (row['id'],))
     task_paths = [run/'tasks.jsonl'] + sorted(recovery.glob('tasks.*.jsonl'))
     for path in task_paths:
         for task in progress_records(path, 'tasks'):
             key = task['id']
             db.execute('insert into all_ids values(?)', (key,))
-            db.execute('insert into jobs values(?,?,?,?,null)', (key,task['type'],'pending',json.dumps(task)))
+            if not fast or not db.execute('select 1 from completed_ids where id=?', (key,)).fetchone():
+                db.execute('insert into jobs values(?,?,?,?,null)', (key,task['type'],'pending',json.dumps(task)))
             if task['type'] == 'scan':
                 db.execute('insert or ignore into scanned values(?)',(task['rel'],))
             else:
                 db.executemany('insert or ignore into files values(?)', ((e['rel'],) for e in task['entries']))
-    completed_paths = [run/'completed.jsonl'] + sorted(recovery.glob('completed.*.jsonl'))
-    for path in completed_paths:
-        for row in progress_records(path, 'completed'):
-            if not db.execute('select 1 from all_ids where id=?',(row['id'],)).fetchone():
-                raise ValueError('completion references missing task')
-            db.execute('delete from jobs where id=?',(row['id'],))
+    if fast:
+        report('validate-completions', force=True)
+        if db.execute('select completed_ids.id from completed_ids left join all_ids on all_ids.id=completed_ids.id where all_ids.id is null limit 1').fetchone():
+            raise ValueError('completion references missing task')
+        db.execute('drop table completed_ids')
+    else:
+        for path in completed_paths:
+            for row in progress_records(path, 'completed'):
+                if not db.execute('select 1 from all_ids where id=?',(row['id'],)).fetchone():
+                    raise ValueError('completion references missing task')
+                db.execute('delete from jobs where id=?',(row['id'],))
     pending = {r[0] for r in db.execute('select id from jobs where type="copy"')}
     original = read(run/'recovery'/'original-counts.json')
-    baseline = {n:collections.Counter(c) for n,c in original.items()}
-    for node in original:
-        folder = run/'nodes'/node
-        receipt_paths = [folder/'receipts.jsonl'] + sorted(folder.glob('attempt-*/receipts.jsonl'))
-        for path in receipt_paths:
-            for row in progress_records(path, 'receipts:'+node):
-                if row.get('job') in pending and row.get('rel') is not None:
-                    db.execute('insert or replace into prior values(?,?,?)',(row['rel'],row['job'],json.dumps(row)))
-                if path.parent != folder:
-                    c = baseline[node]
-                    c[row['status']] += 1
-                    c['processed'] += 1
-                    if row['status'] in ('copied','skipped'):
-                        c[row['status']+'_bytes'] += row.get('logical_bytes',0)
-                        c['payload_written'] += row.get('_payload_written',row.get('logical_bytes',0) if row['status']=='copied' else 0)
-                    if row.get('metadata_warnings'): c['metadata_warnings'] += 1
-                    if row.get('nlink',1)>1: c['hardlink_paths'] += 1
+    parallel_path = recovery/'code'/'projset_parallel_receipts.py'
+    parallel_done = False
+    if os.environ.get('PROJSET_PARALLEL_RECEIPTS') == '1' and parallel_path.is_file():
+        try:
+            spec = importlib.util.spec_from_file_location('projset_parallel_receipts', parallel_path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            baseline = module.rebuild_receipts(run, db, pending, original, report, ssh)
+            parallel_done = True
+        except Exception as error:
+            # journal_mode=off does not guarantee SAVEPOINT rollback.  This
+            # table is empty before receipt rebuilding and is the only table
+            # the optional helper may modify, so clear it explicitly.
+            db.execute('delete from prior')
+            atomic(recovery/'parallel-receipts-error.json', dict(updated=time.time(), error=repr(error)))
+    if not parallel_done:
+        baseline = {n:collections.Counter(c) for n,c in original.items()}
+        for node in original:
+            folder = run/'nodes'/node
+            receipt_paths = [folder/'receipts.jsonl'] + sorted(folder.glob('attempt-*/receipts.jsonl'))
+            for path in receipt_paths:
+                for row in progress_records(path, 'receipts:'+node):
+                    if row.get('job') in pending and row.get('rel') is not None:
+                        db.execute('insert or replace into prior values(?,?,?)',(row['rel'],row['job'],json.dumps(row)))
+                    if path.parent != folder:
+                        c = baseline[node]
+                        c[row['status']] += 1
+                        c['processed'] += 1
+                        if row['status'] in ('copied','skipped'):
+                            c[row['status']+'_bytes'] += row.get('logical_bytes',0)
+                            c['payload_written'] += row.get('_payload_written',row.get('logical_bytes',0) if row['status']=='copied' else 0)
+                        if row.get('metadata_warnings'): c['metadata_warnings'] += 1
+                        if row.get('nlink',1)>1: c['hardlink_paths'] += 1
     db.executescript('create index pending on jobs(state,type,id); create index prior_job on prior(job);')
     db.commit()
     atomic(run/'recovery'/'baseline.json', {n:dict(c) for n,c in baseline.items()})

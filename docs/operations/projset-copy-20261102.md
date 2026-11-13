@@ -123,3 +123,27 @@ python3 -S -B -m unittest discover -s tests/core -p test_projset_copy.py -v
 复查本次运行的 80 条历史错误路径：52 个目录和 28 个普通文件当前均可读取。完整清点这些根路径，去重后共 80 个目录、193 个普通文件，文件合计 7,141,934 bytes；193 个目标文件均缺失。使用冻结复制引擎在 cpu-worker-14 串行定向补拷，193 项均 copied，执行后再次逐文件读取源/目标并比对 SHA-256，全部一致；观察端挂载的 193 个目标路径也已全部可见。主任务持续运行，16/16 节点在线，无重启。
 
 补拷证据位于控制目录 `recovery/fairness-verification-20261110/`，包括 `retry-inventory.json`、`retry-receipts.jsonl`、`retry-summary.json`、`retry-independent-verification.json`、`retry-cross-mount-visibility.json`、`retry-resolution.json`。历史错误清单保留，不回写主控制器计数；看板的 208 条累计错误不会因这次补拷自动减少。其余历史错误与冲突仍需另外复核。
+
+## 2026-11-10：低速补拷更早的错误文件
+
+重新检查其余历史错误，80 个普通文件的源路径可访问、目标路径缺失，合计 26,808,132,624 bytes。独立补拷运行在 `cpu-worker-14`，使用冻结的复制与验证引擎，聚合读取、写入和校验限速为 1 MiB/s；已经存在且内容不同的目标仍记录为冲突，不覆盖。补拷按文件记录持久回执，完成的文件在进程重启后会重新核对身份并跳过；独立 supervisor 在异常退出时最多重启 10 次。主控制器、工作进程及主看板计数均不重启或回写。
+
+补拷 manifest、独立 `status.json`、`supervisor.json`、逐文件 `receipts.jsonl` 与日志位于控制目录 `recovery/prior-error-retry-20261110/`。部署前使用其中一个文件做线上试拷及校验；主 manifest 仍包含该文件，后续由引擎校验已有内容后记为 skipped。原始 208 条历史错误继续保留，不能据此推断补拷已完成；查看独立状态和回执确认结果。另有 48 条中断扫描回执涉及 40 个任务：后续运行的目录日志中均找到重新扫描完成记录，且它们已不在当前待处理队列；子项仍以各自回执为准。检查证据位于 `recovery/fairness-verification-20261110/old-interrupted-scan-check.json`。
+
+SwanLab 复用原实验及 120 秒批量上报，在 `retry/` 下单独显示已校验文件数、总文件数、已校验 TB、总 TB、需关注文件数和运行状态；不改写主复制曲线。上报器由 supervisor 单独重启，主迁移未重启；服务端已确认 step 5421 的补拷指标。部署和服务端回读证据位于 `recovery/prior-error-retry-20261110/swanlab-deployment.json`。
+
+## 2026-11-10：准备失效文件句柄的有限重试
+
+当前工作进程遇到 `ESTALE` 后会记为错误并继续，历史错误不会自动重试。恢复程序增加有限重试：只针对 `ESTALE` 重新打开路径，核对目录身份，并继续使用原有不覆盖和源文件身份校验；详细边界见[恢复说明](projset-recovery.md)。隔离测试覆盖重试成功、重试上限、其他错误、目标冲突、源变化、目录替换和不重复分发；并在 `cpu-worker-6` 的隔离目录使用本次运行冻结的引擎进行验证。
+
+恢复启动代码已更新，更新前的代码和验证记录保留在控制目录 `recovery/estale-inline-canary-c0ab01ae81/`。现有控制器和工作进程没有重启，也没有热加载修复；只有下一次自然恢复启动新进程后，新重试逻辑才会生效。历史错误及当前进程后续出现的错误仍需单独复核，不应据此宣称已修复或完成迁移。
+
+截至北京时间 17:11，对此前两批新增的 254 个错误根路径做只读清点和去重，涉及 459 个普通文件，共约 0.00000737 TB；再次检查时源路径均可访问、文件大小与清点时一致，目标路径均缺失。这是上述两批的已知结果，不代表全部历史异常或后续新增异常的总量。清点及复查明细分别为 `recovery/fairness-verification-20261110/new-stale-inventory-20261110.json`、`new-stale-inventory-20261110-1709.json`、`new-stale-unresolved-recheck-20261110-1710.json`；此次复查没有启动新的补拷。
+
+17:20 进一步清点最新 12 个错误根路径，其中含 22 个目标缺失文件。合计 266 个根路径已对照共享任务日志，源路径身份均与原任务一致；其 137 个任务 ID 在当时的调度缓存中均不再待处理或租出，因此不能依靠当前主队列自动重试。三批清单去重后共 481 个文件、约 0.00000764 TB，已逐个重新核对源文件身份及目标缺失情况，生成 `recovery/fairness-verification-20261110/stale-pending-review-20261110-1720/manifest.json`；对应 `summary.json` 记录校验范围、摘要及当前处理状态。此清单与先前 80 文件补拷清单无重叠；它也不包括清点之后可能新增的错误。
+
+17:26 开始在 `cpu-worker-7` 使用清单执行定向补拷，聚合读写与校验限速 1 MiB/s，源身份变化或目标冲突均不覆盖。481 个文件全部复制成功；随后独立读取源和已发布目标进行 SHA-256 校验，481 / 481 与逐文件回执一致。另在 `cpu-master-0` 的独立挂载抽样校验 10 / 10，266 个原异常根路径在目标端的类型均与源端一致。本次清单、进程日志、逐项回执、独立校验和关联记录位于 `recovery/stale-retry-20261110T1724/`。SwanLab 服务端 step 5600 已确认 `retry/verified_files=508`、`retry/total_files=561`；这是本次 481 个与先前 80 文件任务的合计，不代表所有历史错误均已处理。原主任务的错误计数保留历史，不会因补拷而减少。
+
+17:44 在独立导出器接入历史错误和后续证据的关联报告：[处理汇总](../../runs/projset-copy-outcomes-20261102T144640Z-4316ae/reconciliation/REPORT.md)、[待关注清单](../../runs/projset-copy-outcomes-20261102T144640Z-4316ae/reconciliation/pending-errors.csv)。关联按任务号、路径、回执及验证记录分类；已重新扫描的目录与内容校验成功的文件分开，证据不足或冲突保留为待关注。导出器每轮处理结束后等待120秒继续更新；两次线上刷新已观察到待关注记录从 52 条变为 51 条。仅导出器经 supervisor 重启，主控制器和 SwanLab 上报器没有重启；部署证据位于 `recovery/outcomes-reconciliation-canary-e8b66eb9/verification.json`。
+
+18:09 修正恢复启动代码中目标目录创建遇到 `ESTALE` 时的分类：有限重试耗尽后记为存储错误而非目标冲突，源目录仍继续枚举。隔离测试覆盖重试上限、真实类型冲突保留和后续源扫描；部署及节点验证记录为 `recovery/estale-inline-canary-c0ab01ae81/deployment-v3.json`、`results-v3.json`。当前运行中的工作进程尚未加载该修正，不重启主任务；历史冲突记录也不会被回写。
