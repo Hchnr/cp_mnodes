@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Twenty-minute, durable health and throughput monitor for audit + repair.
+"""Durable five-minute health and twenty-minute throughput monitor.
 
 The monitor checks real processes and mount identities as well as heartbeats.
 It may restore a missing guardian or restart a verified stalled controller;
@@ -26,6 +26,7 @@ import uuid
 
 RUN = Path('/share-mixed/project/.hcr-copy-projset-20261102T144640Z-4316ae')
 INTERVAL = 1200
+HEALTH_INTERVAL = 300
 STALE = 300
 LEADER_NODES = ('cpu-master-0', 'cpu-worker-0')
 
@@ -50,6 +51,7 @@ def summarize(audit, repair, previous, original):
     """Rates and estimates are deliberately separated by their measurement."""
     c = audit.get('counts', {})
     sample = {'audit_updated': audit.get('updated', 0),
+              'audit_started': audit.get('started', 0),
               'files_links': c.get('files', 0) + c.get('symlinks', 0),
               'logical_bytes': c.get('file_bytes', 0),
               'entries': c.get('entries', 0), 'done_dirs': audit.get('done_dirs', 0),
@@ -132,6 +134,127 @@ def summarize(audit, repair, previous, original):
             out['estimates'][prefix + '_hours'] = (total - current) / divisor / rate
             out['estimates'][prefix + '_baseline'] = total / divisor
     return out
+
+
+def recent_samples(path, maximum=96, max_bytes=16 * 1024 * 1024):
+    """Read a bounded history tail; tolerate a torn last line after a crash."""
+    try:
+        with path.open('rb') as stream:
+            stream.seek(0, os.SEEK_END)
+            size = stream.tell()
+            start = max(0, size - max_bytes)
+            stream.seek(start)
+            if start:
+                stream.readline()
+            lines = stream.read().splitlines()
+    except OSError:
+        return []
+    samples = {}
+    for line in lines:
+        try:
+            value = json.loads(line)
+            sample = value.get('sample')
+            at = sample.get('audit_updated') if isinstance(sample, dict) else None
+            if isinstance(at, (int, float)) and not isinstance(at, bool) and math.isfinite(at) and at > 0:
+                samples[at] = sample
+        except (ValueError, TypeError, AttributeError):
+            continue
+    return [samples[key] for key in sorted(samples)[-maximum:]]
+
+
+def select_sample(samples, at, target, minimum, maximum):
+    """Choose the closest valid earlier sample and retain its real interval."""
+    if not isinstance(at, (int, float)) or isinstance(at, bool) or not math.isfinite(at):
+        return None
+    candidates = []
+    for sample in samples:
+        stamp = sample.get('audit_updated') if isinstance(sample, dict) else None
+        if not isinstance(stamp, (int, float)) or isinstance(stamp, bool) or not math.isfinite(stamp):
+            continue
+        age = at - stamp
+        if minimum <= age <= maximum:
+            candidates.append((abs(age - target), age, sample))
+    return min(candidates, key=lambda item: (item[0], item[1]))[2] if candidates else None
+
+
+def rate_window(current, previous, original, reference):
+    """Compute an explicit-duration rate and rough, separate ETA scenarios."""
+    result = {'valid': False, 'note': 'historical reference is not a current source total; '
+              'logical TB is the metadata size of audited files, not I/O throughput'}
+    if not isinstance(current, dict) or not isinstance(previous, dict):
+        return result
+    start, end = previous.get('audit_updated'), current.get('audit_updated')
+    if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+               for v in (start, end)) or end <= start:
+        return result
+    fields = ('files_links', 'logical_bytes', 'done_dirs')
+    if any(not isinstance(current.get(k), int) or not isinstance(previous.get(k), int) or
+           isinstance(current[k], bool) or isinstance(previous[k], bool) or
+           previous[k] < 0 or current[k] < previous[k] for k in fields):
+        return result
+    elapsed = end - start
+    file_rate = (current['files_links'] - previous['files_links']) * 3600 / elapsed
+    tb_rate = (current['logical_bytes'] - previous['logical_bytes']) * 3600 / elapsed / 1e12
+    dir_rate = (current['done_dirs'] - previous['done_dirs']) * 3600 / elapsed
+    result.update(valid=True, seconds=elapsed, from_at=start, to_at=end,
+                  files_links_per_hour=file_rate, logical_TB_per_hour=tb_rate,
+                  directories_per_hour=dir_rate)
+    baseline = original.get('counts', {}) if isinstance(original, dict) else {}
+    reference_valid = (isinstance(reference, dict) and reference.get('schema') == 1 and
+                       reference.get('kind') == 'historical_unique_index_approximation' and
+                       reference.get('excluded') == 'eai_pwm/datasets/Sekai')
+    files = reference.get('files_links') if reference_valid else None
+    if not isinstance(files, int) or isinstance(files, bool) or files <= 0:
+        files = baseline.get('processed')
+        result['files_reference_kind'] = 'first_pass_processed_approximation'
+    else:
+        result['files_reference_kind'] = reference['kind']
+    copied, skipped = baseline.get('copied_bytes'), baseline.get('skipped_bytes')
+    size = copied + skipped if all(isinstance(x, int) and not isinstance(x, bool) and x >= 0
+                                   for x in (copied, skipped)) else None
+    for current_value, total, rate, name, divisor in (
+            (current['files_links'], files, file_rate, 'files', 1),
+            (current['logical_bytes'], size, tb_rate, 'logical_TB', 1e12)):
+        if isinstance(total, int) and not isinstance(total, bool) and total > 0:
+            result[name + '_reference'] = total / divisor
+            result[name + '_progress_percent'] = current_value * 100 / total
+            if current_value < total and rate > 0:
+                result[name + '_remaining_hours'] = (total - current_value) / divisor / rate
+    return result
+
+
+def performance_assessment(short, baseline, previous):
+    """Flag decline in both requested dimensions without calling it a hang."""
+    result = {'state': 'insufficient_data', 'degraded_streak': 0,
+              'note': 'rate changes can reflect workload and batch timing; restart requires health evidence'}
+    if (not isinstance(short, dict) or not short.get('valid') or
+            not isinstance(baseline, dict) or not baseline.get('valid') or
+            short.get('stale') or baseline.get('stale') or
+            short.get('spans_controller_restart') or baseline.get('spans_controller_restart')):
+        return result
+    keys = ('files_links_per_hour', 'logical_TB_per_hour', 'directories_per_hour')
+    if any(not isinstance(values.get(key), (int, float)) or isinstance(values.get(key), bool) or
+           not math.isfinite(values[key]) or values[key] < 0
+           for values in (short, baseline) for key in keys):
+        return result
+    low = {key: baseline[key] > 0 and short[key] < baseline[key] * .25 for key in keys}
+    streak = previous.get('degraded_streak', 0) if isinstance(previous, dict) else 0
+    if not isinstance(streak, int) or isinstance(streak, bool) or streak < 0:
+        streak = 0
+    degraded = low['files_links_per_hour'] and low['logical_TB_per_hour']
+    result.update(state='degraded' if degraded else 'observing',
+                  low_dimensions=low, degraded_streak=streak + 1 if degraded else 0)
+    return result
+
+
+def performance_baseline(windows):
+    """Prefer the longest comparable interval so a slowdown does not self-normalize."""
+    for name in ('last_6h', 'last_1h', 'last_20m'):
+        value = windows.get(name, {})
+        if (value.get('valid') and not value.get('stale') and
+                not value.get('spans_controller_restart')):
+            return name, value
+    return None, {}
 
 
 def historical_scenarios(audit, rates, reference, now):
@@ -959,23 +1082,58 @@ def run_monitor(run, work):
                 old = {}
             if old.get('state') == 'finished':
                 return 0
-            next_check = old.get('updated', 0) + INTERVAL
+            next_check = old.get('updated', 0) + HEALTH_INTERVAL
             while time.time() < next_check:
                 if (work / 'STOP').exists():
                     return 0
                 time.sleep(min(30, max(0, next_check-time.time())))
             try:
-                result = inspect_once(run, work, old.get('sample'))
-                rates, previous_rates = result.get('rates', {}), old.get('rates', {})
-                criteria = ('audit_files_links_per_hour', 'audit_logical_TB_per_hour',
-                            'audit_directories_per_hour')
-                if (result.get('audit_state') == 'running' and
-                    all(k in rates and previous_rates.get(k, 0) > 0 and
-                        rates[k] < .25 * previous_rates[k] for k in criteria)):
+                samples = recent_samples(work / 'history.jsonl')
+                if isinstance(old.get('sample'), dict):
+                    samples.append(old['sample'])
+                audit = json.loads((work.parent / 'status.json').read_text())
+                anchor = select_sample(samples, audit.get('updated'), INTERVAL, 600, 2700)
+                result = inspect_once(run, work, anchor)
+                sample = result['sample']
+                original = json.loads((run / 'status.json').read_text())
+                try:
+                    reference = json.loads((work / 'historical-reference.json').read_text())
+                except (OSError, ValueError):
+                    reference = {}
+                windows = {}
+                age = result.get('audit_age_seconds')
+                fresh = (result.get('audit_state') == 'running' and
+                         isinstance(age, (int, float)) and not isinstance(age, bool) and
+                         math.isfinite(age) and -60 <= age <= STALE)
+                for name, target, minimum, maximum in (
+                        ('last_5m', HEALTH_INTERVAL, 180, 600),
+                        ('last_20m', INTERVAL, 600, 2700),
+                        ('last_1h', 3600, 2700, 5400),
+                        ('last_6h', 21600, 18000, 25200)):
+                    earlier = select_sample(samples, sample.get('audit_updated'), target, minimum, maximum)
+                    windows[name] = rate_window(sample, earlier, original, reference)
+                    if not fresh:
+                        windows[name]['stale'] = True
+                        windows[name].pop('files_remaining_hours', None)
+                        windows[name].pop('logical_TB_remaining_hours', None)
+                    started = sample.get('audit_started')
+                    if (windows[name].get('valid') and isinstance(started, (int, float)) and
+                            not isinstance(started, bool) and math.isfinite(started) and
+                            started > windows[name]['from_at']):
+                        windows[name]['spans_controller_restart'] = True
+                        windows[name].pop('files_remaining_hours', None)
+                        windows[name].pop('logical_TB_remaining_hours', None)
+                result['windows'] = windows
+                baseline_name, baseline = performance_baseline(windows)
+                performance = performance_assessment(windows['last_5m'], baseline, old.get('performance'))
+                performance['baseline_window'] = baseline_name
+                result['performance'] = performance
+                if result.get('audit_state') == 'running' and performance['degraded_streak'] >= 2:
                     result['problems'].append({'component': 'audit',
-                        'problem': 'three_throughput_dimensions_below_25_percent_of_prior_interval'})
+                        'problem': 'sustained_decline_across_files_and_capacity'})
                     result['state'] = 'attention'
-                result.update(interval_seconds=INTERVAL, monitor_host=socket.gethostname(), monitor_pid=os.getpid())
+                result.update(interval_seconds=HEALTH_INTERVAL, rate_interval_seconds=INTERVAL,
+                              monitor_host=socket.gethostname(), monitor_pid=os.getpid())
                 atomic(work / 'status.json', result)
                 with (work / 'history.jsonl').open('a') as stream:
                     stream.write(json.dumps(result, ensure_ascii=True, separators=(',', ':')) + '\n')
