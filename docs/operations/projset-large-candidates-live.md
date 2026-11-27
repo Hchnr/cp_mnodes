@@ -1,6 +1,6 @@
 # 大目录复查自动进展
 
-更新时间：2026-11-20 14:55:45（北京时间）。本文件由程序生成；未完成项不计入可删除容量。
+更新时间：2026-11-27 15:45:10（北京时间）。本文件由程序生成；未完成项不计入可删除容量。
 
 ## EgoLive
 
@@ -37,9 +37,11 @@
 
 - 源：`/share-mixed/projset/eai_pwm/datasets/Egocentric-10K-unpacked`
 - 目标：`/share-mixed/project/eai_pwm/datasets/Egocentric-10K-unpacked`
-- 状态：**节点状态更新待确认**。
-- 截至 11/20 14:54：文件 385,554/403,924，目录 20,764/21,733；候选容量 17.962617 TB。
-- [逐项复查进度](/share-mixed/project/.hcr-copy-projset-20261102T144640Z-4316ae/recovery/full-audit-20261112T1150Z-6c0af294/egocentric-full-verify-20261115T2251Z/CANDIDATES.md)。
+- 状态：**根目录不存在或暂不可确认**。
+- 复查完成时间：2026-11-21 14:59:44（北京时间）；发布时只重新确认根目录存在。
+- 复查范围：403,924 个文件、17.962617 TB。
+- 权限差异：目录 21,733 项、文件 0 项。
+- [最终复查证据](/share-mixed/project/.hcr-copy-projset-20261102T144640Z-4316ae/recovery/full-audit-20261112T1150Z-6c0af294/egocentric-full-verify-20261115T2251Z/VERIFIED.md)。
 
 执行任何清理前，须确认业务读取已切换、源目录停写，确认权限差异可接受，并再次核对源和目标。源文件系统在线，既有核查不是原子快照；逻辑容量不保证等于后端回收量。
 
